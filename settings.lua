@@ -1,36 +1,94 @@
 --[[--
 Settings and persistence manager for Gemini AI Book Illustrator plugin.
-Stores settings in G_reader_settings and supports /mnt/us/gemini_token.txt import.
+Supports multiple image providers: Google Gemini/Imagen, Pollinations (Free Flux), Fal.ai (Flux Schnell/Dev), and OpenAI (DALL-E 3).
 --]]--
 
 local Settings = {}
 Settings.__index = Settings
 
 local DEFAULT_SETTINGS = {
-    api_key = "",
-    text_model = "gemini-3.1-flash-lite",       -- 500 RPD high quota
-    image_model = "gemini-3.1-flash-lite-image", -- Nano Banana 2 Lite (Fastest for Kindle)
-    resolution = "768x1024",                     -- Fast, responsive for Kindle Wi-Fi & 3:4 E-Ink
-    art_style = "auto_genre",                    -- Automatically adapt to book genre
+    api_key = "",                        -- Google Gemini API Key (for Text Brain & Google Imagen)
+    fal_key = "",                        -- Fal.ai API Key (for ultra-cheap Flux.1)
+    openai_key = "",                     -- OpenAI API Key (for DALL-E 3)
+    text_model = "gemini-3.1-flash-lite", -- 500 RPD high quota (Free Text Brain)
+    image_model = "pollinations-flux",    -- Default to Free Pollinations Flux or Nano Banana
+    resolution = "768x1024",              -- Fast, responsive for Kindle Wi-Fi & 3:4 E-Ink
+    art_style = "auto_genre",             -- Automatically adapt to book genre
     save_dir = "/mnt/us/koreader/bookart",
-    timeout = 25,
+    timeout = 30,
     auto_contrast_prompt = true,
 }
 
 Settings.TEXT_MODELS = {
-    { id = "gemini-3.1-flash-lite", name = "Gemini 3.1 Flash Lite (500 RPD - Recommended)", desc = "High rate limits, ultra-fast chapter analysis" },
-    { id = "gemini-3.8-flash",      name = "Gemini 3.8 Flash (2026 Flagship)",              desc = "Deep contextual understanding" },
-    { id = "gemini-2.5-flash",      name = "Gemini 2.5 Flash",                              desc = "Stable high-speed model" },
-    { id = "gemini-2.0-flash",      name = "Gemini 2.0 Flash",                              desc = "Fast legacy flash model" },
-    { id = "gemini-2.5-pro",        name = "Gemini 2.5 Pro",                                desc = "Maximum literary reasoning" },
+    { id = "gemini-3.1-flash-lite", name = "Gemini 3.1 Flash Lite (500 RPD - 100% Free)", desc = "High rate limits, ultra-fast chapter analysis" },
+    { id = "gemini-3.8-flash",      name = "Gemini 3.8 Flash (2026 Flagship)",           desc = "Deep contextual understanding" },
+    { id = "gemini-2.5-flash",      name = "Gemini 2.5 Flash",                           desc = "Stable high-speed model" },
+    { id = "gemini-2.0-flash",      name = "Gemini 2.0 Flash",                           desc = "Fast legacy flash model" },
+    { id = "gemini-2.5-pro",        name = "Gemini 2.5 Pro",                             desc = "Maximum literary reasoning" },
 }
 
 Settings.IMAGE_MODELS = {
-    { id = "gemini-3.1-flash-lite-image", name = "Nano Banana 2 Lite (Gemini 3.1 Flash Lite Image)", desc = "Fastest image generation (2.7x speed, ideal for Kindle)" },
-    { id = "gemini-3.1-flash-image",      name = "Nano Banana 2 (Gemini 3.1 Flash Image)",          desc = "High-quality multimodal image generation" },
-    { id = "gemini-3-pro-image",          name = "Nano Banana Pro (Gemini 3 Pro Image)",            desc = "Maximum artistic detail & composition" },
-    { id = "imagen-4.0-generate-001",     name = "Google Imagen 4.0 Standard",                      desc = "Photorealistic and stylistic rendering" },
-    { id = "imagen-3.0-generate-002",     name = "Google Imagen 3.0",                               desc = "Proven high-detail illustration model" },
+    -- 1. 100% Free Open API
+    {
+        id = "pollinations-flux",
+        provider = "pollinations",
+        name = "🌸 Pollinations Flux.1 ($0.00 - 100% Free)",
+        desc = "No API key needed, unlimited, powered by Flux.1 engine"
+    },
+
+    -- 2. Fal.ai Ultra-Cheap & Fast
+    {
+        id = "fal-flux-schnell",
+        provider = "fal",
+        name = "⚡ Fal.ai FLUX.1 Schnell ($0.003 / image)",
+        desc = "Ultra-fast ~1s, ~333 images for $1 (requires Fal key)"
+    },
+    {
+        id = "fal-flux-dev",
+        provider = "fal",
+        name = "🎨 Fal.ai FLUX.1 Dev ($0.025 / image)",
+        desc = "Maximum photorealism & detail, ~40 images for $1 (requires Fal key)"
+    },
+
+    -- 3. Google Gemini & Imagen Models
+    {
+        id = "gemini-3.1-flash-lite-image",
+        provider = "google",
+        name = "🍌 Nano Banana 2 Lite ($0.07 / image)",
+        desc = "Google Gemini 3.1 Flash Lite Image (Fast multimodal for Kindle)"
+    },
+    {
+        id = "gemini-3.1-flash-image",
+        provider = "google",
+        name = "🍌 Nano Banana 2 ($0.10 / image)",
+        desc = "Google Gemini 3.1 Flash Image (Standard multimodal)"
+    },
+    {
+        id = "gemini-3-pro-image",
+        provider = "google",
+        name = "🍌 Nano Banana Pro (~$0.13 / image)",
+        desc = "Google Gemini 3 Pro Image (Maximum artistic detail)"
+    },
+    {
+        id = "imagen-4.0-generate-001",
+        provider = "google",
+        name = "🖼️ Google Imagen 4.0 Standard",
+        desc = "Google Imagen 4.0 Standard generation"
+    },
+    {
+        id = "imagen-3.0-generate-002",
+        provider = "google",
+        name = "🖼️ Google Imagen 3.0 Standard",
+        desc = "Google Imagen 3.0 Standard generation"
+    },
+
+    -- 4. OpenAI
+    {
+        id = "dall-e-3",
+        provider = "openai",
+        name = "🤖 OpenAI DALL-E 3 ($0.04 - $0.08 / image)",
+        desc = "Standard DALL-E 3 quality (requires OpenAI key)"
+    },
 }
 
 Settings.RESOLUTIONS = {
@@ -73,11 +131,17 @@ function Settings:load()
         end
     end
 
-    -- Sanitize API Key and strings
+    -- Sanitize API Keys
     if type(self.data.api_key) == "string" then
         self.data.api_key = self.data.api_key:gsub("^%s+", ""):gsub("%s+$", ""):gsub("[\r\n]", "")
     end
-    self.data.timeout = tonumber(self.data.timeout) or 25
+    if type(self.data.fal_key) == "string" then
+        self.data.fal_key = self.data.fal_key:gsub("^%s+", ""):gsub("%s+$", ""):gsub("[\r\n]", "")
+    end
+    if type(self.data.openai_key) == "string" then
+        self.data.openai_key = self.data.openai_key:gsub("^%s+", ""):gsub("%s+$", ""):gsub("[\r\n]", "")
+    end
+    self.data.timeout = tonumber(self.data.timeout) or 30
 end
 
 function Settings:save()
@@ -91,29 +155,41 @@ function Settings:get(key)
 end
 
 function Settings:set(key, value)
-    if key == "api_key" and type(value) == "string" then
+    if (key == "api_key" or key == "fal_key" or key == "openai_key") and type(value) == "string" then
         value = value:gsub("^%s+", ""):gsub("%s+$", ""):gsub("[\r\n]", "")
     elseif key == "timeout" then
-        value = tonumber(value) or 25
+        value = tonumber(value) or 30
     end
     self.data[key] = value
     self:save()
 end
 
--- Import token from /mnt/us/gemini_token.txt or candidate paths (does NOT delete file)
-function Settings:importTokenFromFile(specified_filepath)
-    local candidate_paths = {}
-    if specified_filepath and #specified_filepath > 0 then
-        table.insert(candidate_paths, specified_filepath)
+-- Resolve provider for current image model
+function Settings:getImageProvider()
+    local model_id = self:get("image_model") or "pollinations-flux"
+    for _, item in ipairs(Settings.IMAGE_MODELS) do
+        if item.id == model_id then
+            return item.provider or "google"
+        end
     end
+    if model_id:match("^pollinations") then return "pollinations" end
+    if model_id:match("^fal") then return "fal" end
+    if model_id:match("^dall") then return "openai" end
+    return "google"
+end
 
-    table.insert(candidate_paths, "/mnt/us/gemini_token.txt")
-    table.insert(candidate_paths, "/mnt/us/gemini_token.txt.txt") -- Windows double-extension protection
-    table.insert(candidate_paths, "/mnt/us/gemini_token")
-    table.insert(candidate_paths, "/mnt/us/koreader/gemini_token.txt")
-    table.insert(candidate_paths, "/mnt/base-us/gemini_token.txt")
-    table.insert(candidate_paths, "gemini_token.txt")
-    table.insert(candidate_paths, "gemini_token.txt.txt")
+-- Import token helper for any provider
+function Settings:importTokenFromFile(token_type, filename)
+    filename = filename or (token_type == "fal" and "fal_token.txt" or (token_type == "openai" and "openai_token.txt" or "gemini_token.txt"))
+    local candidate_paths = {
+        "/mnt/us/" .. filename,
+        "/mnt/us/" .. filename .. ".txt",
+        "/mnt/us/" .. filename:gsub("%.txt$", ""),
+        "/mnt/us/koreader/" .. filename,
+        "/mnt/base-us/" .. filename,
+        filename,
+        filename .. ".txt",
+    }
 
     local found_file = nil
     local found_path = nil
@@ -128,7 +204,7 @@ function Settings:importTokenFromFile(specified_filepath)
     end
 
     if not found_file then
-        return false, "File not found: /mnt/us/gemini_token.txt\n(Make sure file is placed on Kindle root drive)"
+        return false, string.format("File not found: /mnt/us/%s\n(Place file on Kindle root storage)", filename)
     end
 
     local token = found_file:read("*a")
@@ -140,13 +216,14 @@ function Settings:importTokenFromFile(specified_filepath)
 
     token = token:gsub("^%s+", ""):gsub("%s+$", ""):gsub("[\r\n]", "")
 
-    if #token < 10 then
-        return false, "API Key is too short or empty (length: " .. #token .. ")."
+    if #token < 8 then
+        return false, "Key is too short or empty (length: " .. #token .. ")."
     end
 
-    self:set("api_key", token)
+    local setting_key = (token_type == "fal") and "fal_key" or ((token_type == "openai") and "openai_key" or "api_key")
+    self:set(setting_key, token)
 
-    return true, string.format("Gemini API key imported successfully! (%d chars from %s)", #token, found_path)
+    return true, string.format("Key imported successfully! (%d chars from %s)", #token, found_path)
 end
 
 return Settings

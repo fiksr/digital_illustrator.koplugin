@@ -1,22 +1,29 @@
 # 📖 Gemini AI Book Illustrator for KOReader
-> **`gemini_illustrator.koplugin`** — Intelligent, genre-aware scene visualization and chapter art generator powered by Google Gemini (2026 models) and optimized for E-Ink displays.
+> **`gemini_illustrator.koplugin`** — Intelligent, genre-aware scene visualization and chapter art generator powered by Google Gemini (Text & Chapter Brain) with multi-backend image generation (Pollinations Free, Fal.ai FLUX, Google Nano Banana, OpenAI DALL-E 3) optimized for E-Ink displays.
 
 ---
 
 ## ✨ Features
 
-- 🧠 **Chapter Brain (Scene Suggestions)**:
-  - Automatically identifies chapter boundaries using Table of Contents (TOC).
+- 🧠 **Gemini Chapter Brain (100% Free Text Analysis)**:
+  - Powered by **Google Gemini 3.1 Flash Lite** (500 Requests/Day Free Tier).
+  - Automatically identifies chapter boundaries using Table of Contents (TOC) and XPointers.
   - Analyzes the full chapter and extracts **3 to 4 dramatic, visually striking scenes** complete with titles and direct book quotes.
+- 🎨 **Multi-Provider Image Backends**:
+  - 🌸 **Pollinations Flux.1**: **$0.00 (100% Free)** — No API key needed, unlimited generations.
+  - ⚡ **Fal.ai FLUX.1 [schnell]**: **$0.003 / image** (~333 images for $1, 1-second generation).
+  - 🎨 **Fal.ai FLUX.1 [dev]**: **$0.025 / image** (~40 images for $1, maximum photorealism).
+  - 🍌 **Google Nano Banana 2 Lite**: **$0.07 / image** (`gemini-3.1-flash-lite-image`).
+  - 🍌 **Google Nano Banana 2**: **$0.10 / image** (`gemini-3.1-flash-image`).
+  - 🍌 **Google Nano Banana Pro**: **~$0.13 / image** (`gemini-3-pro-image`).
+  - 🖼️ **Google Imagen 4.0 / 3.0**: **$0.04 – $0.08 / image** (`imagen-4.0-generate-001`).
+  - 🤖 **OpenAI DALL-E 3**: **$0.04 – $0.08 / image** (`dall-e-3`).
 - 📑 **Flexible Trigger Modes**:
-  - **Scan Entire Chapter**: AI-curated scene selection menu.
+  - **Scan Entire Chapter**: AI-curated scene selection menu with quotes.
   - **Custom Page Range**: Scan specific passages (e.g. pages 15–28).
   - **Current Page**: Directly visualize the open page.
   - **Highlight Selection**: Select any paragraph $\rightarrow$ tap **✨ Gemini Illustrate** in the popup menu.
-- ⚡ **2026 Google Gemini Models**:
-  - **Text Brain**: `gemini-3.1-flash-lite` (**500 Requests/Day high-quota limit**), `gemini-3.8-flash`, `gemini-2.5-flash`, `gemini-2.0-flash`, `gemini-2.5-pro`.
-  - **Image Generation**: `gemini-3.1-flash-lite-image` (*Nano Banana 2 Lite - 2.7x faster*), `gemini-3.1-flash-image` (*Nano Banana 2*), `gemini-3-pro-image` (*Nano Banana Pro*), `imagen-4.0-generate-001`, `imagen-3.0-generate-002`.
-- 🎨 **Genre-Aware & E-Ink Optimized Prompt Engine**:
+- 🖋️ **Genre-Aware & E-Ink Optimized Prompt Engine**:
   - Reads book title, author, and synopsis to automatically calibrate tone (Sci-Fi, Dark Fantasy, Cyberpunk, Gothic Horror, Historical Drama, Noir).
   - Enforces high-contrast chiaroscuro, crisp linework, and deep blacks for monochrome 300 PPI E-Ink readability.
   - Art style presets: *Victorian Engraving & Ink (Doré/Dürer)*, *Graphic Novel Comic Noir*, *Vintage Woodcut*, *Charcoal & Pencil Sketch*, *Cinematic B&W*.
@@ -40,20 +47,16 @@
 
 ---
 
-## 🔑 API Key Setup
+## 🔑 API Keys Setup
 
-1. Get a free API key from [Google AI Studio](https://aistudio.google.com/).
-2. **Easy setup**: Create a file named `gemini_token.txt` on your Kindle root directory (`/mnt/us/gemini_token.txt`) containing your API key.
-3. Open KOReader $\rightarrow$ **AI Book Illustrator** $\rightarrow$ **Settings** $\rightarrow$ **Import Key from /mnt/us/gemini_token.txt**.
-
----
-
-## ⚙️ Configuration
-
-Inside KOReader, navigate to **AI Book Illustrator** $\rightarrow$ **Settings**:
-- **Text / Analysis Model**: Choose between `gemini-3.1-flash-preview` (500 RPD), `gemini-3.8-flash`, etc.
-- **Image Model**: Choose between `gemini-3.1-flash-image`, `gemini-3-pro-image`, `imagen-4.0`.
-- **Art Style & Resolution**: Pick your preferred visual style and resolution.
+1. **Google Gemini Key (Required for Text Brain)**:
+   - Get a free key from [Google AI Studio](https://aistudio.google.com/).
+   - Place in `/mnt/us/gemini_token.txt` on your Kindle root drive.
+2. **Optional Image Provider Keys**:
+   - **Pollinations**: No key required! ($0.00 Free).
+   - **Fal.ai**: Place key in `/mnt/us/fal_token.txt`.
+   - **OpenAI**: Place key in `/mnt/us/openai_token.txt`.
+3. In KOReader $\rightarrow$ **AI Book Illustrator** $\rightarrow$ **Settings** $\rightarrow$ **Import Keys from Kindle Files**.
 
 ---
 

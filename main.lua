@@ -1,6 +1,7 @@
 --[[--
 Gemini AI Book Illustrator Plugin for KOReader.
 Generates intelligent, genre-aware scene illustrations using Google Gemini 2026 models with chapter scanning and E-Ink styling.
+Supports multiple image generation backends: Pollinations (Free Flux), Fal.ai, Google Gemini, and OpenAI.
 --]]--
 
 local _ = require("gettext")
@@ -169,9 +170,9 @@ function GeminiIllustrator:scanAndSuggestScenes(mode, custom_start, custom_end)
     self:ensureInitialized()
     local self_ref = self
 
-    if not self.api:getKey() or #self.api:getKey() == 0 then
+    if not self.api:getGeminiKey() or #self.api:getGeminiKey() == 0 then
         UIManager:show(InfoMessage:new{
-            text = _("Please enter your Gemini API key in Settings first.\n(or place in /mnt/us/gemini_token.txt)"),
+            text = _("Please enter your Google Gemini API key in Settings first.\n(Free text key from aistudio.google.com)"),
             timeout = 3.5,
         })
         return
@@ -350,7 +351,7 @@ function GeminiIllustrator:buildResolutionSubmenu()
     return items
 end
 
--- Settings Submenu (API key, Models, Import)
+-- Settings Submenu (API keys, Models, Import)
 function GeminiIllustrator:buildSettingsMenu()
     self:ensureInitialized()
     local self_ref = self
@@ -376,7 +377,7 @@ function GeminiIllustrator:buildSettingsMenu()
         })
     end
 
-    -- Image Model Items
+    -- Image Model Items (All Providers)
     local img_model_items = {}
     local img_models = (Settings and Settings.IMAGE_MODELS) or {}
     for _, m in ipairs(img_models) do
@@ -399,22 +400,42 @@ function GeminiIllustrator:buildSettingsMenu()
 
     return {
         {
-            text = _("Test Connection & Validate API Key"),
+            text = _("Test Connection & Validate Keys"),
             keep_menu_open = true,
             callback = function()
-                local info = InfoMessage:new{ text = _("Connecting to Google Gemini...") }
+                local info = InfoMessage:new{ text = _("Connecting to AI Services...") }
                 UIManager:show(info)
                 local ok_conn, msg = self_ref.api:ping()
                 UIManager:close(info)
-                UIManager:show(InfoMessage:new{ text = msg, timeout = 3.5 })
+                UIManager:show(InfoMessage:new{ text = msg, timeout = 4 })
             end,
+        },
+        {
+            text_func = function()
+                local cur = (self_ref.settings and self_ref.settings:get("image_model")) or "pollinations-flux"
+                for _, m in ipairs(img_models) do
+                    if m.id == cur then return string.format(_("🖼️ Image Model: %s"), m.name) end
+                end
+                return string.format(_("🖼️ Image Model: %s"), cur)
+            end,
+            help_text = _("Choose between Pollinations ($0), Fal.ai ($0.003), Google ($0.07), or OpenAI"),
+            sub_item_table = img_model_items,
+        },
+        {
+            text_func = function()
+                local cur = (self_ref.settings and self_ref.settings:get("text_model")) or "gemini-3.1-flash-lite"
+                return string.format(_("🧠 Text / Analysis Model: %s"), cur)
+            end,
+            help_text = _("Reads & analyzes chapters (Gemini Flash Lite is 100% Free)"),
+            sub_item_table = text_model_items,
         },
         {
             text_func = function()
                 local key = (self_ref.settings and self_ref.settings:get("api_key")) or ""
                 local status = (#key > 0) and string.format(_("Configured (%d chars)"), #key) or _("Not Set")
-                return string.format(_("Gemini API Key: %s"), status)
+                return string.format(_("Google Gemini Key: %s"), status)
             end,
+            help_text = _("Required for Text Analysis & Chapter Brain (Free key from aistudio.google.com)"),
             keep_menu_open = true,
             callback = function(touchmenu_instance)
                 local dialog
@@ -438,7 +459,7 @@ function GeminiIllustrator:buildSettingsMenu()
                                     if self_ref.settings then
                                         self_ref.settings:set("api_key", new_key)
                                     end
-                                    UIManager:show(InfoMessage:new{ text = _("API Key saved."), timeout = 2 })
+                                    UIManager:show(InfoMessage:new{ text = _("Gemini Key saved."), timeout = 2 })
                                     if touchmenu_instance and touchmenu_instance.updateItems then
                                         touchmenu_instance:updateItems()
                                     end
@@ -452,32 +473,118 @@ function GeminiIllustrator:buildSettingsMenu()
             end,
         },
         {
-            text = _("Import Key from /mnt/us/gemini_token.txt"),
-            help_text = _("Place key in gemini_token.txt on Kindle root to avoid typing on e-ink."),
+            text_func = function()
+                local key = (self_ref.settings and self_ref.settings:get("fal_key")) or ""
+                local status = (#key > 0) and string.format(_("Configured (%d chars)"), #key) or _("Not Set")
+                return string.format(_("Fal.ai API Key: %s"), status)
+            end,
+            help_text = _("Optional key for Fal.ai FLUX ($0.003 / image from fal.ai)"),
+            keep_menu_open = true,
+            callback = function(touchmenu_instance)
+                local dialog
+                dialog = InputDialog:new{
+                    title = _("Fal.ai API Key"),
+                    description = _("Paste your Fal.ai Key (for Flux.1 Schnell $0.003):"),
+                    input = (self_ref.settings and self_ref.settings:get("fal_key")) or "",
+                    buttons = {
+                        {
+                            {
+                                text = _("Cancel"),
+                                id = "close",
+                                callback = function() UIManager:close(dialog) end,
+                            },
+                            {
+                                text = _("Save"),
+                                is_enter_default = true,
+                                callback = function()
+                                    local new_key = dialog:getInputText()
+                                    UIManager:close(dialog)
+                                    if self_ref.settings then
+                                        self_ref.settings:set("fal_key", new_key)
+                                    end
+                                    UIManager:show(InfoMessage:new{ text = _("Fal.ai Key saved."), timeout = 2 })
+                                    if touchmenu_instance and touchmenu_instance.updateItems then
+                                        touchmenu_instance:updateItems()
+                                    end
+                                end,
+                            },
+                        },
+                    },
+                }
+                UIManager:show(dialog)
+                dialog:onShowKeyboard()
+            end,
+        },
+        {
+            text_func = function()
+                local key = (self_ref.settings and self_ref.settings:get("openai_key")) or ""
+                local status = (#key > 0) and string.format(_("Configured (%d chars)"), #key) or _("Not Set")
+                return string.format(_("OpenAI API Key: %s"), status)
+            end,
+            help_text = _("Optional key for OpenAI DALL-E 3"),
+            keep_menu_open = true,
+            callback = function(touchmenu_instance)
+                local dialog
+                dialog = InputDialog:new{
+                    title = _("OpenAI API Key"),
+                    description = _("Paste your OpenAI Key (for DALL-E 3):"),
+                    input = (self_ref.settings and self_ref.settings:get("openai_key")) or "",
+                    buttons = {
+                        {
+                            {
+                                text = _("Cancel"),
+                                id = "close",
+                                callback = function() UIManager:close(dialog) end,
+                            },
+                            {
+                                text = _("Save"),
+                                is_enter_default = true,
+                                callback = function()
+                                    local new_key = dialog:getInputText()
+                                    UIManager:close(dialog)
+                                    if self_ref.settings then
+                                        self_ref.settings:set("openai_key", new_key)
+                                    end
+                                    UIManager:show(InfoMessage:new{ text = _("OpenAI Key saved."), timeout = 2 })
+                                    if touchmenu_instance and touchmenu_instance.updateItems then
+                                        touchmenu_instance:updateItems()
+                                    end
+                                end,
+                            },
+                        },
+                    },
+                }
+                UIManager:show(dialog)
+                dialog:onShowKeyboard()
+            end,
+        },
+        {
+            text = _("Import Keys from Kindle Files (/mnt/us/*.txt)"),
+            help_text = _("Reads gemini_token.txt, fal_token.txt, or openai_token.txt on Kindle root."),
             keep_menu_open = true,
             callback = function(touchmenu_instance)
                 if self_ref.settings then
-                    local ok_import, msg = self_ref.settings:importTokenFromFile("/mnt/us/gemini_token.txt")
-                    UIManager:show(InfoMessage:new{ text = msg, timeout = 3 })
-                    if ok_import and touchmenu_instance and touchmenu_instance.updateItems then
+                    local msgs = {}
+                    local ok_g, msg_g = self_ref.settings:importTokenFromFile("gemini", "gemini_token.txt")
+                    if ok_g then table.insert(msgs, "Gemini Key: OK") end
+
+                    local ok_f, msg_f = self_ref.settings:importTokenFromFile("fal", "fal_token.txt")
+                    if ok_f then table.insert(msgs, "Fal Key: OK") end
+
+                    local ok_o, msg_o = self_ref.settings:importTokenFromFile("openai", "openai_token.txt")
+                    if ok_o then table.insert(msgs, "OpenAI Key: OK") end
+
+                    if #msgs > 0 then
+                        UIManager:show(InfoMessage:new{ text = table.concat(msgs, "\n"), timeout = 3 })
+                    else
+                        UIManager:show(InfoMessage:new{ text = _("No token files found.\n(Place gemini_token.txt, fal_token.txt, or openai_token.txt on Kindle)"), timeout = 3.5 })
+                    end
+
+                    if touchmenu_instance and touchmenu_instance.updateItems then
                         touchmenu_instance:updateItems()
                     end
                 end
             end,
-        },
-        {
-            text_func = function()
-                local cur = (self_ref.settings and self_ref.settings:get("text_model")) or "gemini-3.1-flash-lite"
-                return string.format(_("Text / Analysis Model: %s"), cur)
-            end,
-            sub_item_table = text_model_items,
-        },
-        {
-            text_func = function()
-                local cur = (self_ref.settings and self_ref.settings:get("image_model")) or "gemini-3.1-flash-lite-image"
-                return string.format(_("Image Model: %s"), cur)
-            end,
-            sub_item_table = img_model_items,
         },
     }
 end
