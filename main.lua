@@ -132,21 +132,21 @@ function GeminiIllustrator:getSubMenuItems()
             end,
         },
         {
-            text = _("📚 Cast of Characters (Full Book pp. 1-500)"),
-            help_text = _("Scans all pages read so far and extracts full cast of characters."),
+            text = _("📚 Cast of Characters (Read So Far / Do ove strane)"),
+            help_text = _("Scans all pages read so far and extracts characters met up to now (spoiler-free)."),
             callback = function()
                 self_ref:scanAndSuggestCharacters("book")
             end,
         },
         {
-            text = _("🌐 Cast of Characters (Search Internet)"),
-            help_text = _("Looks up canonical characters from Wikipedia/literary databases without scanning book."),
+            text = _("🌐 Cast of Characters (Search Internet / Cela knjiga)"),
+            help_text = _("Looks up canonical characters from Wikipedia/literary databases for the entire book."),
             callback = function()
                 self_ref:scanAndSuggestCharacters("internet")
             end,
         },
         {
-            text = _("🎭 Cast of Characters (Current Chapter)"),
+            text = _("🎭 Cast of Characters (Current Chapter / Ovo poglavlje)"),
             help_text = _("Extracts characters in this chapter & generates portrait concept art."),
             callback = function()
                 self_ref:scanAndSuggestCharacters("chapter")

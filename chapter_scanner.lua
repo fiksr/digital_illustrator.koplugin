@@ -93,40 +93,54 @@ function Scanner:cleanHtmlText(raw_html)
     if not raw_html or #raw_html == 0 then return "" end
 
     local txt = raw_html
-    -- Strip comments, script, style, head
-    txt = txt:gsub("<!--.-?-->", " ")
-    txt = txt:gsub("<script.-?</script>", " ")
-    txt = txt:gsub("<style.-?</style>", " ")
-    txt = txt:gsub("<head.-?</head>", " ")
-    -- Replace block tags with newlines for natural sentence flow
-    txt = txt:gsub("<[pP][^>]*>", "\n")
-    txt = txt:gsub("<[bB][rR]%s*/?>", "\n")
-    txt = txt:gsub("<[hH][1-6][^>]*>", "\n\n")
-    txt = txt:gsub("<[dD][iI][vV][^>]*>", "\n")
-    txt = txt:gsub("<[^>]+>", " ")
+
+    pcall(function()
+        -- Strip HTML comments: <!%-%-.-%-%->
+        txt = txt:gsub("<!%-%-.-%-%->", " ")
+        -- Strip script, style, head blocks
+        txt = txt:gsub("<[sS][cC][rR][iI][pP][tT].-</[sS][cC][rR][iI][pP][tT]>", " ")
+        txt = txt:gsub("<[sS][tT][yY][lL][eE].-</[sS][tT][yY][lL][eE]>", " ")
+        txt = txt:gsub("<[hH][eE][aA][dD].-</[hH][eE][aA][dD]>", " ")
+        -- Replace block tags with newlines for natural sentence flow
+        txt = txt:gsub("<[pP][^>]*>", "\n")
+        txt = txt:gsub("<[bB][rR][^>]*>", "\n")
+        txt = txt:gsub("<[hH][1-6][^>]*>", "\n\n")
+        txt = txt:gsub("<[dD][iI][vV][^>]*>", "\n")
+        -- Strip all remaining tags
+        txt = txt:gsub("<[^>]+>", " ")
+    end)
 
     -- Decode named HTML entities
-    for ent, val in pairs(HTML_ENTITIES) do
-        txt = txt:gsub(ent, val)
-    end
+    pcall(function()
+        for ent, val in pairs(HTML_ENTITIES) do
+            txt = txt:gsub(ent, val)
+        end
+    end)
 
     -- Decode decimal entities &#269;
-    txt = txt:gsub("&#([0-9]+);", function(c)
-        local n = tonumber(c)
-        if n then return codepointToUtf8(n) end
-        return " "
+    pcall(function()
+        txt = txt:gsub("&#([0-9]+);", function(c)
+            local n = tonumber(c)
+            if n then return codepointToUtf8(n) end
+            return " "
+        end)
     end)
 
     -- Decode hex entities &#x10d;
-    txt = txt:gsub("&#x([0-9a-fA-F]+);", function(c)
-        local n = tonumber(c, 16)
-        if n then return codepointToUtf8(n) end
-        return " "
+    pcall(function()
+        txt = txt:gsub("&#x([0-9a-fA-F]+);", function(c)
+            local n = tonumber(c, 16)
+            if n then return codepointToUtf8(n) end
+            return " "
+        end)
     end)
 
     -- Normalize multiple spaces and excess blank lines
-    txt = txt:gsub("[ \t\r\f]+", " ")
-    txt = txt:gsub("\n%s*\n+", "\n\n")
+    pcall(function()
+        txt = txt:gsub("[ \t\r\f]+", " ")
+        txt = txt:gsub("\n%s*\n+", "\n\n")
+    end)
+
     return txt:gsub("^%s+", ""):gsub("%s+$", "")
 end
 
