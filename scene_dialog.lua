@@ -112,6 +112,74 @@ function SceneDialog:showCharacterPicker(characters, title_label, on_select_char
     UIManager:show(picker_menu)
 end
 
+-- Show Detailed Character Profile Card (Dossier) with Bio & Action Buttons
+function SceneDialog:showCharacterCard(char, book_info, on_generate_callback, on_view_callback)
+    local self_ref = self
+    local name = char.name or _("Character")
+    local role = char.role and (#char.role > 0) and char.role or _("Character")
+    local summary = char.summary or _("No summary available.")
+    local visual_desc = char.visual_prompt or ""
+    local has_portrait = (char.has_portrait == true)
+
+    local card_text = string.format("🎭 Uloga:\n%s\n\n📖 Opis i uloga u priči:\n%s", role, summary)
+
+    if #visual_desc > 0 then
+        local clean_vis = visual_desc:gsub("^Vertical portrait[^,]*,%s*", ""):gsub("^masterpiece[^,]*,%s*", "")
+        if #clean_vis > 0 then
+            card_text = card_text .. string.format("\n\n🎨 Vizuelni izgled (Koncept):\n%s", clean_vis)
+        end
+    end
+
+    local dialog
+    local row1 = {}
+
+    if has_portrait then
+        table.insert(row1, {
+            text = _("🖼️ Prikaži Portret"),
+            is_enter_default = true,
+            callback = function()
+                UIManager:close(dialog)
+                if on_view_callback then on_view_callback(char) end
+            end,
+        })
+        table.insert(row1, {
+            text = _("🔄 Ponovo Nacrtaj (AI)"),
+            callback = function()
+                UIManager:close(dialog)
+                if on_generate_callback then on_generate_callback(char, true) end
+            end,
+        })
+    else
+        table.insert(row1, {
+            text = _("🎨 Generiši AI Portret"),
+            is_enter_default = true,
+            callback = function()
+                UIManager:close(dialog)
+                if on_generate_callback then on_generate_callback(char, false) end
+            end,
+        })
+    end
+
+    local row2 = {
+        {
+            text = _("Zatvori"),
+            callback = function()
+                UIManager:close(dialog)
+            end,
+        },
+    }
+
+    dialog = ButtonDialog:new{
+        title = string.format("🎭 %s (%s)", name, role),
+        text = card_text,
+        buttons = {
+            row1,
+            row2,
+        },
+    }
+    UIManager:show(dialog)
+end
+
 -- Show Fullscreen Image Viewer with Quick Action Buttons
 function SceneDialog:showGeneratedArtwork(image_path, scene_info, book_info, on_regenerate)
     if not image_path then return end

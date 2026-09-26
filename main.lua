@@ -549,7 +549,16 @@ function GeminiIllustrator:scanAndSuggestCharacters(mode, force_refresh)
                 cached_cast,
                 title_label,
                 function(chosen_char)
-                    self_ref:generateAndDisplayCharacterPortrait(chosen_char, book_info)
+                    self_ref.scene_dialog:showCharacterCard(
+                        chosen_char,
+                        book_info,
+                        function(c_obj, force_regen)
+                            self_ref:generateAndDisplayCharacterPortrait(c_obj, book_info, force_regen)
+                        end,
+                        function(c_obj)
+                            self_ref:generateAndDisplayCharacterPortrait(c_obj, book_info, false)
+                        end
+                    )
                 end,
                 function()
                     self_ref:scanAndSuggestCharacters(mode, true)
@@ -614,7 +623,16 @@ function GeminiIllustrator:scanAndSuggestCharacters(mode, force_refresh)
             characters,
             title_label,
             function(chosen_char)
-                self_ref:generateAndDisplayCharacterPortrait(chosen_char, book_info)
+                self_ref.scene_dialog:showCharacterCard(
+                    chosen_char,
+                    book_info,
+                    function(c_obj, force_regen)
+                        self_ref:generateAndDisplayCharacterPortrait(c_obj, book_info, force_regen)
+                    end,
+                    function(c_obj)
+                        self_ref:generateAndDisplayCharacterPortrait(c_obj, book_info, false)
+                    end
+                )
             end,
             function()
                 self_ref:scanAndSuggestCharacters(mode, true)
