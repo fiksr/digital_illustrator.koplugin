@@ -14,7 +14,7 @@ local WidgetContainer = require("ui/widget/container/widgetcontainer")
 -- Safely load internal modules
 local plugin_dir = debug.getinfo(1, "S").source:match("@?(.*[/\\])") or ""
 
-local Settings, API, Scanner, PromptEngine, SceneDialog
+local Settings, API, Scanner, PromptEngine, SceneDialog, QRServer
 local ok, mod
 
 ok, mod = pcall(dofile, plugin_dir .. "settings.lua")
@@ -31,6 +31,9 @@ if ok then PromptEngine = mod end
 
 ok, mod = pcall(dofile, plugin_dir .. "scene_dialog.lua")
 if ok then SceneDialog = mod end
+
+ok, mod = pcall(dofile, plugin_dir .. "qr_server.lua")
+if ok then QRServer = mod end
 
 local GeminiIllustrator = WidgetContainer:extend{
     name = "gemini_illustrator",
@@ -71,6 +74,9 @@ function GeminiIllustrator:ensureInitialized()
     end
     if not self.scene_dialog and SceneDialog and self.settings then
         self.scene_dialog = SceneDialog:new(self.settings)
+    end
+    if not self.qr_server and QRServer and self.settings then
+        self.qr_server = QRServer:new(self.settings)
     end
 end
 
@@ -436,6 +442,20 @@ function GeminiIllustrator:buildKeysMenu()
     local self_ref = self
 
     return {
+        {
+            text = _("📱 Pair with Phone (Scan QR Code)"),
+            help_text = _("Scan QR with your phone to paste and send all keys instantly over Wi-Fi."),
+            keep_menu_open = true,
+            callback = function(touchmenu_instance)
+                if self_ref.qr_server then
+                    self_ref.qr_server:start(function()
+                        if touchmenu_instance and touchmenu_instance.updateItems then
+                            touchmenu_instance:updateItems()
+                        end
+                    end)
+                end
+            end,
+        },
         {
             text = _("Test Connection & Validate Keys"),
             keep_menu_open = true,
