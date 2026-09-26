@@ -301,6 +301,13 @@ function GeminiIllustrator:scanAndSuggestScenes(mode, custom_start, custom_end, 
 
     local full_cache_key = string.format("%s_%s", book_info.title or "book", cache_key_segment)
 
+    -- Explicitly purge cache if user requested re-scan
+    if force_refresh then
+        if self.mem_cache then self.mem_cache[full_cache_key] = nil end
+        local cache_file = self:getCacheFilePath(full_cache_key)
+        pcall(function() os.remove(cache_file) end)
+    end
+
     -- 1. Check for Cached Chapter Scenes (Instant 0-second load without consuming API quota)
     if not force_refresh then
         local cached_scenes = self:getCachedScenes(full_cache_key)
@@ -329,8 +336,9 @@ function GeminiIllustrator:scanAndSuggestScenes(mode, custom_start, custom_end, 
         return
     end
 
+    local text_kb = math.max(1, math.floor(#text_to_analyze / 1024))
     local info = InfoMessage:new{
-        text = string.format(_("🧠 Gemini (%s) is reading %s and identifying dramatic scenes..."), self.api:getTextModel(), title_label),
+        text = string.format(_("🧠 Gemini (%s) is reading %s (%d KB text) and identifying dramatic scenes..."), self.api:getTextModel(), title_label, text_kb),
     }
     UIManager:show(info)
 
@@ -467,6 +475,13 @@ function GeminiIllustrator:scanAndSuggestCharacters(mode, force_refresh)
 
     local full_cache_key = string.format("%s_%s", book_info.title or "book", cache_key_segment)
 
+    -- Explicitly purge cache if user requested re-scan
+    if force_refresh then
+        if self.mem_cache then self.mem_cache[full_cache_key] = nil end
+        local cache_file = self:getCacheFilePath(full_cache_key)
+        pcall(function() os.remove(cache_file) end)
+    end
+
     -- 1. Check for Cached Characters (Instant 0-second load)
     if not force_refresh then
         local cached_cast = self:getCachedScenes(full_cache_key)
@@ -494,10 +509,11 @@ function GeminiIllustrator:scanAndSuggestCharacters(mode, force_refresh)
         return
     end
 
+    local text_kb = math.max(1, math.floor(#text_to_analyze / 1024))
     local enable_web_search = self.settings:get("enable_web_search") == true
     local search_hint = enable_web_search and " [+Google Search]" or ""
     local info = InfoMessage:new{
-        text = string.format(_("🧠 Gemini is identifying characters from %s%s..."), title_label, search_hint),
+        text = string.format(_("🧠 Gemini is identifying characters from %s (%d KB text)%s..."), title_label, text_kb, search_hint),
     }
     UIManager:show(info)
 
