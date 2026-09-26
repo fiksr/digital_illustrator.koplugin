@@ -147,6 +147,11 @@ local function buildHTMLPage(settings)
       </select>
     </div>
 
+    <div class="field" style="display: flex; align-items: center; gap: 10px; margin-top: 14px;">
+      <input type="checkbox" name="enable_web_search" value="true" id="web_search" %s style="width: 20px; height: 20px; accent-color: #0284c7;">
+      <label for="web_search" style="margin: 0; cursor: pointer; font-size: 0.88rem;">🌐 Enable Google Search Grounding for Characters</label>
+    </div>
+
     <button type="submit">💾 Send & Save to Kindle</button>
   </form>
   <div class="footer">🔒 100%% Private & Local — Direct transfer over home Wi-Fi</div>
@@ -165,7 +170,8 @@ local function buildHTMLPage(settings)
     cur_art_style == "comic_noir" and "selected" or "",
     cur_art_style == "woodcut" and "selected" or "",
     cur_art_style == "charcoal_sketch" and "selected" or "",
-    cur_art_style == "cinematic_bw" and "selected" or ""
+    cur_art_style == "cinematic_bw" and "selected" or "",
+    (settings and settings:get("enable_web_search") == true) and "checked" or ""
 )
 end
 
@@ -287,6 +293,7 @@ function QRServer:start(on_success_callback, on_close_callback)
                         if params.openai_key then self_ref.settings:set("openai_key", params.openai_key) end
                         if params.image_model then self_ref.settings:set("image_model", params.image_model) end
                         if params.art_style then self_ref.settings:set("art_style", params.art_style) end
+                        self_ref.settings:set("enable_web_search", params.enable_web_search == "true")
                     end
 
                     -- Send HTTP 200 Success Response

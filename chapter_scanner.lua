@@ -232,4 +232,32 @@ function Scanner:getPageRangeText(ui, start_page, end_page)
     return txt, start_page, end_page
 end
 
+-- Extract all text from page 1 up to current page (for full book cast analysis)
+function Scanner:getTextUpToCurrentPage(ui)
+    ui = resolveReaderUI(ui)
+    if not ui or not ui.document then return "" end
+
+    local doc = ui.document
+    local cur_page = (ui.getCurrentPage and ui:getCurrentPage()) or (ui.view and ui.view.state and ui.view.state.page) or 1
+    local total_pages = (doc.getPageCount and doc:getPageCount()) or cur_page
+
+    cur_page = math.max(1, math.min(cur_page, total_pages))
+
+    -- Fast extraction via XPointers
+    if doc.getTextFromXPointers and doc.getXPointerForPage then
+        local xp0 = doc:getXPointerForPage(1)
+        local xp1 = doc:getXPointerForPage(cur_page + 1) or doc:getXPointerForPage(cur_page)
+        if xp0 and xp1 then
+            local ok, txt = pcall(doc.getTextFromXPointers, doc, xp0, xp1, false)
+            if ok and txt and #txt > 0 then
+                return txt, 1, cur_page
+            end
+        end
+    end
+
+    -- Fallback: Get page range text
+    local txt, s_p, e_p = self:getPageRangeText(ui, 1, cur_page)
+    return txt, s_p, e_p
+end
+
 return Scanner

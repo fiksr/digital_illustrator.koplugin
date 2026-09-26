@@ -76,4 +76,42 @@ function PromptEngine:buildSingleScenePrompt(selected_text, book_info)
     return prompt
 end
 
+-- Builds prompt for Extracting Characters from Text (returns JSON array of characters)
+function PromptEngine:buildCharacterAnalysisInstruction(book_info, enable_web_search)
+    local title = (book_info and book_info.title) or "Unknown Book"
+    local author = (book_info and book_info.author) or "Unknown Author"
+    local description = (book_info and book_info.description) or ""
+    local style_pref = self.settings:get("art_style") or "auto_genre"
+    local style_note = STYLE_MODIFIERS[style_pref] or ""
+
+    local web_note = enable_web_search and "You may use Google Search to verify canonical visual descriptions and appearance details for well-known literary characters, but DO NOT include future plot spoilers." or "Rely exclusively on physical descriptions and characteristics found in the provided text."
+
+    local prompt = string.format([[
+You are an expert literary visualizer and character art director.
+The user is reading "%s" by %s. %s
+
+Your task:
+1. Identify up to 6 key characters present or mentioned in the provided text excerpt.
+2. For each character, extract or deduce their exact physical appearance, facial features, age, hair, eyes, body build, distinctive marks (scars, beards, glasses), clothing/armor, and demeanor.
+3. %s
+4. Construct a masterpiece vertical portrait visual prompt for each character:
+   - Upper-body bust portrait framing (focused on head, shoulders, face).
+   - Dynamic chiaroscuro lighting, deep blacks and crisp highlights for Kindle 300 PPI E-Ink.
+   - %s
+   - Strictly avoid future spoilers in the summary.
+
+Output STRICTLY a JSON array of objects with no surrounding markdown formatting or backticks. Follow this exact schema:
+[
+  {
+    "name": "Character Name",
+    "role": "Short role (e.g. Protagonist, Chief Detective, Village Elder)",
+    "summary": "1-2 sentence non-spoiler summary of who they are and their key traits",
+    "visual_prompt": "Vertical portrait composition (3:4 aspect ratio, upper-body bust portrait), masterpiece character concept art of [Name], [age] years old, [detailed face, eyes, hair, expression, scars], wearing [authentic period attire/clothing], dramatic side chiaroscuro lighting, deep black shadows, stark monochromatic contrast, crisp linework, masterpiece for e-ink display."
+  }
+]
+]], title, author, (#description > 0 and ("Book context: " .. description) or ""), web_note, style_note)
+
+    return prompt
+end
+
 return PromptEngine

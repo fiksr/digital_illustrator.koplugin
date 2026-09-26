@@ -65,6 +65,50 @@ function SceneDialog:showScenePicker(scenes, chapter_title, on_select_callback, 
     UIManager:show(picker_menu)
 end
 
+-- Show list of extracted characters (Cast of Characters)
+function SceneDialog:showCharacterPicker(characters, title_label, on_select_character, on_rescan_callback, is_cached)
+    local menu_items = {}
+
+    if on_rescan_callback then
+        table.insert(menu_items, {
+            text = _("🔄 Re-scan Cast with Gemini"),
+            help_text = _("Re-analyze text to detect all characters and update profiles."),
+            callback = function()
+                on_rescan_callback()
+            end,
+        })
+    end
+
+    for idx, char in ipairs(characters) do
+        local name = char.name or string.format(_("Character #%d"), idx)
+        local role = char.role and (#char.role > 0) and string.format(" (%s)", char.role) or ""
+        local summary = char.summary or ""
+
+        table.insert(menu_items, {
+            text = string.format("🎭 %s%s", name, role),
+            help_text = summary,
+            callback = function()
+                if on_select_character then
+                    on_select_character(char)
+                end
+            end,
+        })
+    end
+
+    table.insert(menu_items, {
+        text = _("Cancel"),
+        callback = function() end,
+    })
+
+    local title_prefix = is_cached and _("⚡ Cached Cast: ") or _("🎭 Cast: ")
+    local picker_menu = Menu:new{
+        title = title_prefix .. (title_label or _("Characters")),
+        item_table = menu_items,
+        is_borderless = true,
+    }
+    UIManager:show(picker_menu)
+end
+
 -- Show Fullscreen Image Viewer with Quick Action Buttons
 function SceneDialog:showGeneratedArtwork(image_path, scene_info, book_info)
     if not image_path then return end

@@ -132,6 +132,20 @@ function GeminiIllustrator:getSubMenuItems()
             end,
         },
         {
+            text = _("🎭 Cast of Characters (Current Chapter)"),
+            help_text = _("Extracts characters in this chapter & generates portrait concept art."),
+            callback = function()
+                self_ref:scanAndSuggestCharacters("chapter")
+            end,
+        },
+        {
+            text = _("📚 Cast of Characters (Full Book to Here)"),
+            help_text = _("Scans all characters met so far without spoilers."),
+            callback = function()
+                self_ref:scanAndSuggestCharacters("book")
+            end,
+        },
+        {
             text = _("📑 Scan Custom Page Range..."),
             help_text = _("Pick a specific page range (e.g. pages 15-28)."),
             callback = function()
@@ -421,6 +435,139 @@ function GeminiIllustrator:generateAndDisplayScene(scene_obj, book_info)
     end)
 end
 
+-- Workflow 4: Extract Cast of Characters, Present Choices, and Generate Portrait
+function GeminiIllustrator:scanAndSuggestCharacters(mode, force_refresh)
+    self:ensureInitialized()
+    local self_ref = self
+
+    if not self.api:getGeminiKey() or #self.api:getGeminiKey() == 0 then
+        UIManager:show(InfoMessage:new{
+            text = _("Please enter your Google Gemini API key in Settings first.\n(Free text key from aistudio.google.com)"),
+            timeout = 3.5,
+        })
+        return
+    end
+
+    local book_info = self.scanner:getBookInfo(self.ui)
+    local text_to_analyze = ""
+    local title_label = ""
+    local cache_key_segment = ""
+
+    if mode == "chapter" then
+        local chapter_text, s_p, e_p, ch_title = self.scanner:getCurrentChapterText(self.ui)
+        text_to_analyze = chapter_text
+        title_label = string.format("%s Characters (pp. %d-%d)", ch_title, s_p, e_p)
+        cache_key_segment = string.format("cast_ch_%s_%d_%d", ch_title, s_p, e_p)
+    else
+        local book_text, s_p, e_p = self.scanner:getTextUpToCurrentPage(self.ui)
+        text_to_analyze = book_text
+        title_label = string.format(_("Full Cast (pp. 1-%d)"), e_p)
+        cache_key_segment = string.format("cast_full_%d", e_p)
+    end
+
+    local full_cache_key = string.format("%s_%s", book_info.title or "book", cache_key_segment)
+
+    -- 1. Check for Cached Characters (Instant 0-second load)
+    if not force_refresh then
+        local cached_cast = self:getCachedScenes(full_cache_key)
+        if cached_cast and #cached_cast > 0 then
+            self.scene_dialog:showCharacterPicker(
+                cached_cast,
+                title_label,
+                function(chosen_char)
+                    self_ref:generateAndDisplayCharacterPortrait(chosen_char, book_info)
+                end,
+                function()
+                    self_ref:scanAndSuggestCharacters(mode, true)
+                end,
+                true -- is_cached
+            )
+            return
+        end
+    end
+
+    if #text_to_analyze < 30 then
+        UIManager:show(InfoMessage:new{
+            text = _("Could not extract text from document.\nPlease ensure a book is currently open."),
+            timeout = 3,
+        })
+        return
+    end
+
+    local enable_web_search = self.settings:get("enable_web_search") == true
+    local search_hint = enable_web_search and " [+Google Search]" or ""
+    local info = InfoMessage:new{
+        text = string.format(_("🧠 Gemini is identifying characters from %s%s..."), title_label, search_hint),
+    }
+    UIManager:show(info)
+
+    UIManager:scheduleIn(0.1, function()
+        local sys_prompt = self_ref.prompt_engine:buildCharacterAnalysisInstruction(book_info, enable_web_search)
+        local characters, err = self_ref.api:extractCharacters(text_to_analyze, sys_prompt, enable_web_search)
+        UIManager:close(info)
+
+        if not characters or #characters == 0 then
+            UIManager:show(InfoMessage:new{
+                text = string.format(_("Failed to extract characters:\n%s"), tostring(err)),
+                timeout = 4,
+            })
+            return
+        end
+
+        -- Save to persistent cache
+        self_ref:setCachedScenes(full_cache_key, characters)
+
+        -- Show character picker
+        self_ref.scene_dialog:showCharacterPicker(
+            characters,
+            title_label,
+            function(chosen_char)
+                self_ref:generateAndDisplayCharacterPortrait(chosen_char, book_info)
+            end,
+            function()
+                self_ref:scanAndSuggestCharacters(mode, true)
+            end,
+            false -- is_cached
+        )
+    end)
+end
+
+-- Generate Character Portrait and Display in Fullscreen Viewer
+function GeminiIllustrator:generateAndDisplayCharacterPortrait(char_obj, book_info)
+    self:ensureInitialized()
+    local self_ref = self
+    local visual_prompt = char_obj.visual_prompt or string.format("Vertical portrait concept art of %s, %s", char_obj.name or "Character", char_obj.role or "")
+    local save_dir = self.settings:get("save_dir") or "/mnt/us/koreader/bookart"
+    local timestamp = os.time()
+    local safe_name = (char_obj.name or "character"):gsub("[^%w_%-]", "_")
+    local out_path = string.format("%s/char_%s_%d.png", save_dir, safe_name, timestamp)
+
+    local img_model = self.api:getImageModel()
+    local info = InfoMessage:new{
+        text = string.format(_("🎨 Generating portrait of %s with %s..."), char_obj.name or "Character", img_model),
+    }
+    UIManager:show(info)
+
+    UIManager:scheduleIn(0.1, function()
+        local generated_file, err = self_ref.api:generateImage(visual_prompt, out_path)
+        UIManager:close(info)
+
+        if generated_file then
+            local scene_obj = {
+                title = string.format("🎭 %s", char_obj.name or "Character"),
+                summary = string.format("%s\n\n%s", char_obj.role and ("Role: " .. char_obj.role) or "", char_obj.summary or ""),
+                visual_prompt = visual_prompt,
+            }
+            self_ref.scene_dialog:showGeneratedArtwork(generated_file, scene_obj, book_info)
+        else
+            UIManager:show(InfoMessage:new{
+                text = string.format(_("Failed to generate character portrait:\n%s"), tostring(err)),
+                timeout = 4,
+            })
+        end
+    end)
+end
+
 -- Image Model Submenu
 function GeminiIllustrator:buildImageModelSubmenu()
     self:ensureInitialized()
@@ -691,6 +838,27 @@ function GeminiIllustrator:buildKeysMenu()
                 }
                 UIManager:show(dialog)
                 dialog:onShowKeyboard()
+            end,
+        },
+        {
+            text_func = function()
+                local on = self_ref.settings and self_ref.settings:get("enable_web_search") == true
+                return on and _("🌐 Character Web Search: ON (Google Grounding)") or _("🌐 Character Web Search: OFF (Book Text Only)")
+            end,
+            help_text = _("When ON, searches Google/wikis for canonical character details. When OFF, uses Kindle book text only."),
+            checked_func = function()
+                return self_ref.settings and self_ref.settings:get("enable_web_search") == true
+            end,
+            callback = function(touchmenu_instance)
+                if self_ref.settings then
+                    local cur = self_ref.settings:get("enable_web_search") == true
+                    self_ref.settings:set("enable_web_search", not cur)
+                    local state_str = (not cur) and _("Enabled (Google Grounding)") or _("Disabled (Book Text Only)")
+                    UIManager:show(InfoMessage:new{ text = string.format(_("Character Web Search: %s"), state_str), timeout = 2 })
+                end
+                if touchmenu_instance and touchmenu_instance.updateItems then
+                    touchmenu_instance:updateItems()
+                end
             end,
         },
         {

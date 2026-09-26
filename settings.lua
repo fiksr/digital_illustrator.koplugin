@@ -17,6 +17,7 @@ local DEFAULT_SETTINGS = {
     save_dir = "/mnt/us/koreader/bookart",
     timeout = 30,
     auto_contrast_prompt = true,
+    enable_web_search = false,           -- Optional Google Search Grounding for canonical character lookup
 }
 
 Settings.TEXT_MODELS = {

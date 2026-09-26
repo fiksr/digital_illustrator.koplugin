@@ -18,13 +18,18 @@
   - 🍌 **Google Nano Banana Pro**: **~$0.13 / image** (`gemini-3-pro-image`).
   - 🖼️ **Google Imagen 4.0 / 3.0**: **$0.04 – $0.08 / image** (`imagen-4.0-generate-001`).
   - 🤖 **OpenAI DALL-E 3**: **$0.04 – $0.08 / image** (`dall-e-3`).
+- 🎭 **AI Cast of Characters (Concept Art & Portrets)**:
+  - **Chapter Cast**: Scans characters in the active chapter and builds a character gallery.
+  - **Full Book Cast**: Gathers all characters met up to your current reading progress with non-spoiler summaries.
+  - **Master Bust Portraits**: Generates vertical (3:4) upper-body portraits with facial features, period attire, and dramatic chiaroscuro lighting.
+  - **🌐 Optional Google Search Grounding**: Toggle online search in settings to cross-reference canonical appearances from official wikis.
 - 📑 **Flexible Trigger Modes**:
-  - **Scan Entire Chapter**: AI-curated scene selection menu with quotes.
+  - **Scan Entire Chapter**: AI-curated scene selection menu with quotes and 0-second persistent caching.
   - **Custom Page Range**: Scan specific passages (e.g. pages 15–28).
   - **Current Page**: Directly visualize the open page.
   - **Highlight Selection**: Select any paragraph $\rightarrow$ tap **✨ Gemini Illustrate** in the popup menu.
 - 🖋️ **Genre-Aware & E-Ink Optimized Prompt Engine**:
-  - Reads book title, author, and synopsis to automatically calibrate tone (Sci-Fi, Dark Fantasy, Cyberpunk, Gothic Horror, Historical Drama, Noir).
+  - Strict **Vertical Portrait Orientation (3:4 aspect ratio)** calibration.
   - Enforces high-contrast chiaroscuro, crisp linework, and deep blacks for monochrome 300 PPI E-Ink readability.
   - Art style presets: *Victorian Engraving & Ink (Doré/Dürer)*, *Graphic Novel Comic Noir*, *Vintage Woodcut*, *Charcoal & Pencil Sketch*, *Cinematic B&W*.
 - 🚀 **Kindle Performance & Fast Mode**:

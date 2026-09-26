@@ -293,6 +293,106 @@ function API:analyzeChapter(chapter_text, system_instruction)
     return nil, "Could not parse scenes array from Gemini response."
 end
 
+-- Extract Cast of Characters from Text (using Google Gemini 3.1 Flash with optional Web Search Grounding)
+function API:extractCharacters(text_to_analyze, system_instruction, enable_web_search)
+    local key = self:getGeminiKey()
+    if #key == 0 then
+        return nil, "Gemini API key is not configured."
+    end
+
+    local model = self:getTextModel()
+    local url = string.format(
+        "https://generativelanguage.googleapis.com/v1beta/models/%s:generateContent?key=%s",
+        model, key
+    )
+
+    local truncated_text = text_to_analyze:sub(1, 60000)
+
+    local payload = {
+        system_instruction = {
+            parts = { { text = system_instruction } }
+        },
+        contents = {
+            {
+                role = "user",
+                parts = { { text = truncated_text } }
+            }
+        },
+        generationConfig = {
+            response_mime_type = "application/json",
+            temperature = 0.4,
+        }
+    }
+
+    -- Add Google Search Grounding if enabled by user
+    if enable_web_search then
+        payload.tools = {
+            {
+                google_search = {}
+            }
+        }
+    end
+
+    local body_json = encodeJSON(payload)
+    local tmp_payload = "/tmp/gemini_characters.json"
+    local f = io.open(tmp_payload, "w")
+    if not f then
+        tmp_payload = "gemini_characters.json"
+        f = io.open(tmp_payload, "w")
+    end
+    if f then
+        f:write(body_json)
+        f:close()
+    end
+
+    local timeout = math.max(self:getTimeout(), 35)
+    local curl_cmd = string.format(
+        'curl -s -k -m %d -X POST -H "Content-Type: application/json" -d @%s "%s" -w "\\nHTTP_CODE:%%{http_code}" 2>/dev/null',
+        timeout, tmp_payload, url
+    )
+
+    local handle = io.popen(curl_cmd)
+    if not handle then
+        pcall(function() os.remove(tmp_payload) end)
+        return nil, "Failed to launch curl process."
+    end
+
+    local raw = handle:read("*a")
+    handle:close()
+    pcall(function() os.remove(tmp_payload) end)
+
+    if not raw or #raw == 0 then
+        return nil, "Empty response or timeout during character extraction."
+    end
+
+    local resp_body, http_code = raw:match("^(.-)\nHTTP_CODE:(%d%d%d)%s*$")
+    if http_code ~= "200" then
+        return nil, string.format("Gemini API Error (HTTP %s): %s", tostring(http_code), tostring(resp_body):sub(1, 150))
+    end
+
+    local decoded = decodeJSON(resp_body)
+    if not decoded or not decoded.candidates or not decoded.candidates[1] then
+        return nil, "Invalid JSON structure received from Gemini."
+    end
+
+    local candidate = decoded.candidates[1]
+    local text_content = candidate.content and candidate.content.parts and candidate.content.parts[1] and candidate.content.parts[1].text
+    if not text_content then
+        return nil, "No character content returned in Gemini candidate."
+    end
+
+    text_content = text_content:gsub("^```json%s*", ""):gsub("^```%s*", ""):gsub("%s*```$", "")
+
+    local characters = decodeJSON(text_content)
+    if type(characters) == "table" and #characters > 0 then
+        return characters
+    elseif type(characters) == "table" and characters.characters and #characters.characters > 0 then
+        return characters.characters
+    end
+
+    return nil, "Could not parse characters array from Gemini response."
+end
+
 -- Generate Image: Dispatches to chosen provider (Pollinations, Fal.ai, Google, OpenAI)
 function API:generateImage(visual_prompt, output_filepath)
     local provider = self.settings:getImageProvider()
