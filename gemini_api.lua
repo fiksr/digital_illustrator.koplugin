@@ -695,24 +695,41 @@ function API:generateImage(visual_prompt, output_filepath)
     local payload = {}
 
     local portrait_prompt = "Vertical portrait orientation (3:4 aspect ratio, vertical composition, taller than wide). " .. visual_prompt
-    local google_img_model = "imagen-3.0-generate-002"
-    if model == "gemini-3.1-flash-lite-image" or model == "imagen-3.0-fast-generate-001" then
-        google_img_model = "imagen-3.0-fast-generate-001"
-    elseif model:match("^imagen") then
-        google_img_model = model
-    end
 
-    url = string.format("https://generativelanguage.googleapis.com/v1beta/models/%s:predict?key=%s", google_img_model, gemini_key)
-    payload = {
-        instances = {
-            { prompt = portrait_prompt }
-        },
-        parameters = {
-            sampleCount = 1,
-            aspectRatio = "3:4",
-            outputMimeType = "image/png"
+    if model:match("^imagen") then
+        url = string.format("https://generativelanguage.googleapis.com/v1beta/models/%s:predict?key=%s", model, gemini_key)
+        payload = {
+            instances = {
+                { prompt = portrait_prompt }
+            },
+            parameters = {
+                sampleCount = 1,
+                aspectRatio = "3:4",
+                outputMimeType = "image/png"
+            }
         }
-    }
+    else
+        -- Native Gemini Multimodal Image Generation
+        local gemini_model_id = model
+        if gemini_model_id == "gemini-3.1-flash-lite-image" then
+            gemini_model_id = "gemini-2.5-flash-image"
+        end
+
+        url = string.format("https://generativelanguage.googleapis.com/v1beta/models/%s:generateContent?key=%s", gemini_model_id, gemini_key)
+        payload = {
+            contents = {
+                {
+                    role = "user",
+                    parts = {
+                        { text = portrait_prompt }
+                    }
+                }
+            },
+            generationConfig = {
+                responseModalities = { "TEXT", "IMAGE" }
+            }
+        }
+    end
 
     local body_json = encodeJSON(payload)
     local f = io.open(tmp_payload, "w")
@@ -740,7 +757,7 @@ function API:generateImage(visual_prompt, output_filepath)
 
     local resp_body, http_code = raw:match("^(.-)\nHTTP_CODE:(%d%d%d)%s*$")
     if http_code ~= "200" then
-        return nil, string.format("Google Image API Error (HTTP %s): %s", tostring(http_code), tostring(resp_body):sub(1, 150))
+        return nil, string.format("Google Image API Error (HTTP %s):\n%s\n\n(Tip: Switch to '🌸 Pollinations Flux.1' in Settings for 100%% free unlimited images)", tostring(http_code), tostring(resp_body):sub(1, 140))
     end
 
     local decoded = decodeJSON(resp_body)
