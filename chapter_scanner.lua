@@ -1,9 +1,11 @@
 --[[--
 Chapter & Document Scanner for KOReader.
-Extracts book metadata, current chapter text via TOC, custom page ranges, and single page excerpts.
+Extracts book metadata, current chapter text via TOC/XPointers, custom page ranges, and screen text across EPUB, MOBI, PDF, and DjVu formats.
 --]]--
 
+local Device = require("device")
 local logger = require("logger")
+local Screen = Device.screen
 
 local Scanner = {}
 Scanner.__index = Scanner
@@ -13,8 +15,30 @@ function Scanner:new()
     return self
 end
 
--- Extract metadata for current book (Title, Author, Description, Series)
+-- Safely resolve active ReaderUI document context
+local function resolveReaderUI(ui)
+    if ui and ui.document then return ui end
+
+    -- Try ReaderUI singleton
+    local ok_rui, ReaderUI = pcall(require, "apps/reader/readerui")
+    if ok_rui and ReaderUI and ReaderUI.instance and ReaderUI.instance.document then
+        return ReaderUI.instance
+    end
+
+    -- Try top active widget in UIManager
+    local ok_uim, UIManager = pcall(require, "ui/uimanager")
+    if ok_uim and UIManager then
+        local top = UIManager:getTopWidget()
+        if top and top.document then return top end
+        if top and top.ui and top.ui.document then return top.ui end
+    end
+
+    return ui
+end
+
+-- Extract metadata for current book (Title, Author, Description)
 function Scanner:getBookInfo(ui)
+    ui = resolveReaderUI(ui)
     if not ui or not ui.document then
         return {
             title = "Current Book",
@@ -28,7 +52,6 @@ function Scanner:getBookInfo(ui)
 
     local title = props.title
     if not title or #title == 0 then
-        -- Fallback to filename
         if doc.file then
             title = doc.file:match("([^/\\]+)%.[^%.]+$") or doc.file
         else
@@ -46,69 +69,70 @@ function Scanner:getBookInfo(ui)
     }
 end
 
--- Safely extract text from a single page
-function Scanner:getPageText(ui, page_num)
+-- Extract text of the currently visible screen page (supports CREngine and MuPDF)
+function Scanner:getCurrentPageText(ui)
+    ui = resolveReaderUI(ui)
     if not ui or not ui.document then return "" end
+
     local doc = ui.document
 
-    -- Method 1: getPageText
-    if doc.getPageText then
-        local ok, txt = pcall(doc.getPageText, doc, page_num)
-        if ok and txt and #txt > 0 then
-            return txt
+    -- 1. CREngine (EPUB, MOBI, FB2, AZW3): getTextFromPositions across screen dimensions
+    if doc.getTextFromPositions then
+        local w = Screen and Screen:getWidth() or 1272
+        local h = Screen and Screen:getHeight() or 1696
+        local ok, res = pcall(doc.getTextFromPositions, doc, { x = 0, y = 0 }, { x = w, y = h }, true)
+        if ok and res then
+            if type(res) == "table" and res.text and #res.text > 0 then
+                return res.text:gsub("^%s+", ""):gsub("%s+$", "")
+            elseif type(res) == "string" and #res > 0 then
+                return res:gsub("^%s+", ""):gsub("%s+$", "")
+            end
         end
     end
 
-    -- Method 2: getTextFromPositions
-    if doc.getTextFromPositions and doc.getPagePositions then
-        local ok, pos = pcall(doc.getPagePositions, doc, page_num)
-        if ok and pos and pos.start_pos and pos.end_pos then
-            local ok_t, txt = pcall(doc.getTextFromPositions, doc, pos.start_pos, pos.end_pos)
-            if ok_t and txt and #txt > 0 then
-                return txt
+    -- 2. MuPDF / PDF / DjVu: getTextBoxes
+    local cur_page = (ui.getCurrentPage and ui:getCurrentPage()) or (ui.view and ui.view.state and ui.view.state.page) or 1
+    if doc.getTextBoxes then
+        local ok, page_boxes = pcall(doc.getTextBoxes, doc, cur_page)
+        if ok and page_boxes and type(page_boxes) == "table" and #page_boxes > 0 then
+            local lines = {}
+            for _, line in ipairs(page_boxes) do
+                local words = {}
+                for _, word_item in ipairs(line) do
+                    if word_item.word and #word_item.word > 0 then
+                        table.insert(words, word_item.word)
+                    end
+                end
+                if #words > 0 then
+                    table.insert(lines, table.concat(words, " "))
+                end
             end
+            if #lines > 0 then
+                return table.concat(lines, "\n")
+            end
+        end
+    end
+
+    -- 3. Fallback: getPageText
+    if doc.getPageText then
+        local ok, txt = pcall(doc.getPageText, doc, cur_page)
+        if ok and txt and #txt > 0 then
+            return txt:gsub("^%s+", ""):gsub("%s+$", "")
         end
     end
 
     return ""
 end
 
--- Extract text of the currently open page
-function Scanner:getCurrentPageText(ui)
-    if not ui or not ui.view or not ui.view.state then return "" end
-    local cur_page = ui.view.state.page or 1
-    return self:getPageText(ui, cur_page)
-end
-
--- Extract text for a specified range of pages (e.g. 15 to 25)
-function Scanner:getPageRangeText(ui, start_page, end_page)
-    if not ui or not ui.document then return "" end
-    local total_pages = (ui.document.getPageCount and ui.document:getPageCount()) or 1000
-
-    start_page = math.max(1, math.min(start_page, total_pages))
-    end_page = math.max(start_page, math.min(end_page, total_pages))
-
-    local text_parts = {}
-    for p = start_page, end_page do
-        local page_str = self:getPageText(ui, p)
-        if #page_str > 0 then
-            table.insert(text_parts, page_str)
-        end
-        -- Keep total text within reasonable memory limits
-        if #text_parts > 50 then break end
-    end
-
-    return table.concat(text_parts, "\n\n"), start_page, end_page
-end
-
--- Locate current chapter bounds using Table of Contents (TOC) and extract chapter text
+-- Locate current chapter text (using fast CreDocument XPointers or TOC page ranges)
 function Scanner:getCurrentChapterText(ui)
-    if not ui or not ui.document or not ui.view or not ui.view.state then
+    ui = resolveReaderUI(ui)
+    if not ui or not ui.document then
         return "", 1, 1, "Current Chapter"
     end
 
     local doc = ui.document
-    local cur_page = ui.view.state.page or 1
+    local cur_page = (ui.getCurrentPage and ui:getCurrentPage()) or (ui.view and ui.view.state and ui.view.state.page) or 1
     local total_pages = (doc.getPageCount and doc:getPageCount()) or cur_page
 
     local toc = doc.getToc and doc:getToc() or nil
@@ -116,13 +140,17 @@ function Scanner:getCurrentChapterText(ui)
     local start_page = cur_page
     local end_page = cur_page
 
+    -- 1. If TOC is available, locate current chapter entry
     if toc and type(toc) == "table" and #toc > 0 then
-        -- Flatten TOC to find chapter surrounding cur_page
         local entries = {}
         local function flatten(items)
             for _, item in ipairs(items) do
-                if item.page then
-                    table.insert(entries, { title = item.title or "Chapter", page = item.page })
+                if item.page or item.xpointer then
+                    table.insert(entries, {
+                        title = item.title or "Chapter",
+                        page = item.page or 1,
+                        xpointer = item.xpointer
+                    })
                 end
                 if item.subitems and #item.subitems > 0 then
                     flatten(item.subitems)
@@ -131,7 +159,7 @@ function Scanner:getCurrentChapterText(ui)
         end
         flatten(toc)
 
-        table.sort(entries, function(a, b) return a.page < b.page end)
+        table.sort(entries, function(a, b) return (a.page or 1) < (b.page or 1) end)
 
         local current_entry_idx = nil
         for i, entry in ipairs(entries) do
@@ -143,27 +171,65 @@ function Scanner:getCurrentChapterText(ui)
         end
 
         if current_entry_idx then
-            local entry = entries[current_entry_idx]
-            chapter_title = entry.title
-            start_page = entry.page
-            if entries[current_entry_idx + 1] then
-                end_page = math.max(start_page, entries[current_entry_idx + 1].page - 1)
-            else
-                end_page = math.min(start_page + 25, total_pages)
+            local cur_entry = entries[current_entry_idx]
+            local next_entry = entries[current_entry_idx + 1]
+
+            chapter_title = cur_entry.title
+            start_page = cur_entry.page or cur_page
+            end_page = next_entry and (next_entry.page - 1) or math.min(start_page + 20, total_pages)
+
+            -- Fast CREngine DOM extraction via XPointers
+            if doc.getTextFromXPointers and cur_entry.xpointer then
+                local next_xp = next_entry and next_entry.xpointer or nil
+                if not next_xp and doc.getXPointerForPage then
+                    next_xp = doc:getXPointerForPage(end_page)
+                end
+
+                if next_xp then
+                    local ok, ch_text = pcall(doc.getTextFromXPointers, doc, cur_entry.xpointer, next_xp, false)
+                    if ok and ch_text and #ch_text > 50 then
+                        return ch_text, start_page, end_page, chapter_title
+                    end
+                end
             end
         end
     end
 
-    -- Fallback if no TOC found or single chapter: take 15-page window around current page
-    if start_page == end_page then
-        start_page = math.max(1, cur_page - 2)
-        end_page = math.min(total_pages, cur_page + 10)
-        chapter_title = string.format("Pages %d - %d", start_page, end_page)
+    -- 2. Fallback: Extract current page + surrounding pages
+    local current_page_text = self:getCurrentPageText(ui)
+    if #current_page_text > 0 then
+        return current_page_text, cur_page, cur_page, string.format("Page %d (%s)", cur_page, chapter_title)
     end
 
-    -- Extract text
-    local text, s_p, e_p = self:getPageRangeText(ui, start_page, end_page)
-    return text, s_p, e_p, chapter_title
+    return "", cur_page, cur_page, "Current Page"
+end
+
+-- Extract text for a specified range of pages (e.g. 15 to 25)
+function Scanner:getPageRangeText(ui, start_page, end_page)
+    ui = resolveReaderUI(ui)
+    if not ui or not ui.document then return "", start_page, end_page end
+
+    local doc = ui.document
+    local total_pages = (doc.getPageCount and doc:getPageCount()) or 1000
+
+    start_page = math.max(1, math.min(start_page, total_pages))
+    end_page = math.max(start_page, math.min(end_page, total_pages))
+
+    -- If CREngine has getXPointerForPage
+    if doc.getTextFromXPointers and doc.getXPointerForPage then
+        local xp0 = doc:getXPointerForPage(start_page)
+        local xp1 = doc:getXPointerForPage(math.min(end_page + 1, total_pages))
+        if xp0 and xp1 then
+            local ok, txt = pcall(doc.getTextFromXPointers, doc, xp0, xp1, false)
+            if ok and txt and #txt > 0 then
+                return txt, start_page, end_page
+            end
+        end
+    end
+
+    -- Fallback: Use current page text
+    local txt = self:getCurrentPageText(ui)
+    return txt, start_page, end_page
 end
 
 return Scanner
