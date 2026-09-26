@@ -83,10 +83,13 @@ function SceneDialog:showCharacterPicker(characters, title_label, on_select_char
         local name = char.name or string.format(_("Character #%d"), idx)
         local role = char.role and (#char.role > 0) and string.format(" (%s)", char.role) or ""
         local summary = char.summary or ""
+        local has_portrait = (char.has_portrait == true)
+        local icon = has_portrait and "🖼️" or "🎨"
+        local status_tag = has_portrait and _(" [Saved - View]") or _(" [Create Portrait]")
 
         table.insert(menu_items, {
-            text = string.format("🎭 %s%s", name, role),
-            help_text = summary,
+            text = string.format("%s %s%s%s", icon, name, role, status_tag),
+            help_text = has_portrait and (_("✅ Portrait already saved on device. Tap to view instantly!\n") .. summary) or summary,
             callback = function()
                 if on_select_character then
                     on_select_character(char)
@@ -110,7 +113,7 @@ function SceneDialog:showCharacterPicker(characters, title_label, on_select_char
 end
 
 -- Show Fullscreen Image Viewer with Quick Action Buttons
-function SceneDialog:showGeneratedArtwork(image_path, scene_info, book_info)
+function SceneDialog:showGeneratedArtwork(image_path, scene_info, book_info, on_regenerate)
     if not image_path then return end
 
     local title = (scene_info and scene_info.title) or _("AI Illustration")
@@ -125,62 +128,77 @@ function SceneDialog:showGeneratedArtwork(image_path, scene_info, book_info)
     UIManager:show(viewer)
 
     -- 2. Offer complete action dialog overlay
-    self:showArtworkActions(image_path, scene_info, book_info)
+    self:showArtworkActions(image_path, scene_info, book_info, on_regenerate)
 end
 
 -- Comprehensive Actions Dialog for any artwork (New or from Gallery)
-function SceneDialog:showArtworkActions(image_path, scene_info, book_info)
+function SceneDialog:showArtworkActions(image_path, scene_info, book_info, on_regenerate)
     local self_ref = self
     local title = (scene_info and scene_info.title) or _("AI Illustration")
     local summary = (scene_info and scene_info.summary) or string.format(_("Saved at: %s"), image_path)
+
+    local row1 = {
+        {
+            text = _("🖼️ Set as Screensaver"),
+            callback = function()
+                UIManager:close(dialog)
+                local ok_sc, msg = self_ref:saveAsScreensaver(image_path)
+                UIManager:show(InfoMessage:new{ text = msg, timeout = 3 })
+            end,
+        },
+        {
+            text = _("📖 Set as Book Cover"),
+            callback = function()
+                UIManager:close(dialog)
+                local ok_cov, msg = self_ref:saveAsCover(image_path, book_info)
+                UIManager:show(InfoMessage:new{ text = msg, timeout = 3 })
+            end,
+        },
+    }
+
+    local row2 = {}
+    if on_regenerate then
+        table.insert(row2, {
+            text = _("🔄 Regenerate with AI"),
+            callback = function()
+                UIManager:close(dialog)
+                on_regenerate()
+            end,
+        })
+    end
+
+    table.insert(row2, {
+        text = _("💾 Export to Pictures"),
+        callback = function()
+            UIManager:close(dialog)
+            local ok_exp, msg = self_ref:exportImage(image_path, "/mnt/us/pictures")
+            UIManager:show(InfoMessage:new{ text = msg, timeout = 3 })
+        end,
+    })
+
+    table.insert(row2, {
+        text = _("🔍 View Fullscreen"),
+        callback = function()
+            UIManager:close(dialog)
+            local v = ImageViewer:new{ file = image_path, with_title = true, title = title }
+            UIManager:show(v)
+        end,
+    })
+
+    table.insert(row2, {
+        text = _("Dismiss"),
+        callback = function()
+            UIManager:close(dialog)
+        end,
+    })
 
     local dialog
     dialog = ButtonDialog:new{
         title = title,
         text = summary,
         buttons = {
-            {
-                {
-                    text = _("🖼️ Set as Screensaver"),
-                    callback = function()
-                        UIManager:close(dialog)
-                        local ok_sc, msg = self_ref:saveAsScreensaver(image_path)
-                        UIManager:show(InfoMessage:new{ text = msg, timeout = 3 })
-                    end,
-                },
-                {
-                    text = _("📖 Set as Book Cover"),
-                    callback = function()
-                        UIManager:close(dialog)
-                        local ok_cov, msg = self_ref:saveAsCover(image_path, book_info)
-                        UIManager:show(InfoMessage:new{ text = msg, timeout = 3 })
-                    end,
-                },
-            },
-            {
-                {
-                    text = _("💾 Export to /mnt/us/pictures/"),
-                    callback = function()
-                        UIManager:close(dialog)
-                        local ok_exp, msg = self_ref:exportImage(image_path, "/mnt/us/pictures")
-                        UIManager:show(InfoMessage:new{ text = msg, timeout = 3 })
-                    end,
-                },
-                {
-                    text = _("🔍 View Fullscreen"),
-                    callback = function()
-                        UIManager:close(dialog)
-                        local v = ImageViewer:new{ file = image_path, with_title = true, title = title }
-                        UIManager:show(v)
-                    end,
-                },
-                {
-                    text = _("Dismiss"),
-                    callback = function()
-                        UIManager:close(dialog)
-                    end,
-                },
-            },
+            row1,
+            row2,
         },
     }
 
@@ -247,44 +265,53 @@ end
 -- Browse and view all previously generated illustrations
 function SceneDialog:showGallery(book_info)
     local self_ref = self
-    local search_dir = (self.settings and self.settings:get("save_dir")) or "/mnt/us/koreader/bookart"
+    local base_dir = (self.settings and self.settings:get("save_dir")) or "/mnt/us/koreader/bookart"
+    local search_dirs = {
+        base_dir,
+        base_dir .. "/portraits",
+        base_dir .. "/covers",
+    }
     local files = {}
 
-    -- Scan directory using posix ls or lfs
+    -- Scan directories using posix ls or lfs
     local ok_lfs, lfs = pcall(require, "libs/libkoreader-lfs")
     if not ok_lfs then ok_lfs, lfs = pcall(require, "lfs") end
 
-    if ok_lfs and lfs and lfs.dir then
-        pcall(function()
-            for fname in lfs.dir(search_dir) do
-                if fname:match("%.png$") or fname:match("%.jpg$") then
-                    local fpath = search_dir .. "/" .. fname
-                    local attr = lfs.attributes(fpath) or {}
-                    table.insert(files, {
-                        path = fpath,
-                        name = fname,
-                        mod = attr.modification or 0,
-                        size = attr.size or 0,
-                    })
+    for _, sdir in ipairs(search_dirs) do
+        if ok_lfs and lfs and lfs.dir then
+            pcall(function()
+                for fname in lfs.dir(sdir) do
+                    if fname:match("%.png$") or fname:match("%.jpg$") then
+                        local fpath = sdir .. "/" .. fname
+                        local attr = lfs.attributes(fpath) or {}
+                        table.insert(files, {
+                            path = fpath,
+                            name = fname,
+                            mod = attr.modification or 0,
+                            size = attr.size or 0,
+                            sdir = sdir,
+                        })
+                    end
                 end
-            end
-        end)
-    else
-        local p = io.popen(string.format('ls -t "%s"/*.png "%s"/*.jpg 2>/dev/null', search_dir, search_dir))
-        if p then
-            for line in p:lines() do
-                local fpath = line:gsub("^%s+", ""):gsub("%s+$", "")
-                if #fpath > 0 then
-                    local fname = fpath:match("([^/\\]+)$") or fpath
-                    table.insert(files, {
-                        path = fpath,
-                        name = fname,
-                        mod = 0,
-                        size = 0,
-                    })
+            end)
+        else
+            local p = io.popen(string.format('ls -t "%s"/*.png "%s"/*.jpg 2>/dev/null', sdir, sdir))
+            if p then
+                for line in p:lines() do
+                    local fpath = line:gsub("^%s+", ""):gsub("%s+$", "")
+                    if #fpath > 0 then
+                        local fname = fpath:match("([^/\\]+)$") or fpath
+                        table.insert(files, {
+                            path = fpath,
+                            name = fname,
+                            mod = 0,
+                            size = 0,
+                            sdir = sdir,
+                        })
+                    end
                 end
+                p:close()
             end
-            p:close()
         end
     end
 
@@ -292,7 +319,7 @@ function SceneDialog:showGallery(book_info)
 
     if #files == 0 then
         UIManager:show(InfoMessage:new{
-            text = string.format(_("No saved illustrations found in:\n%s\n\nGenerate your first scene illustration!"), search_dir),
+            text = string.format(_("No saved illustrations found in:\n%s\n\nGenerate your first scene illustration or character portrait!"), base_dir),
             timeout = 3.5,
         })
         return
@@ -304,8 +331,15 @@ function SceneDialog:showGallery(book_info)
         local sz_kb = math.floor(f.size / 1024)
         local help = (f.mod > 0) and string.format("%s (%d KB)", date_str, sz_kb) or f.path
 
+        local prefix = "🖼️ "
+        if (f.sdir and f.sdir:find("/portraits")) or f.name:match("^char_") then
+            prefix = "🎭 [Portrait] "
+        elseif (f.sdir and f.sdir:find("/covers")) or f.name:match("_cover%.png$") then
+            prefix = "📖 [Cover] "
+        end
+
         table.insert(menu_items, {
-            text = string.format("🖼️ %s", f.name),
+            text = string.format("%s%s", prefix, f.name),
             help_text = help,
             callback = function()
                 local scene_info = {

@@ -542,6 +542,9 @@ function GeminiIllustrator:scanAndSuggestCharacters(mode, force_refresh)
     if not force_refresh then
         local cached_cast = self:getCachedScenes(full_cache_key)
         if cached_cast and #cached_cast > 0 then
+            for _, char in ipairs(cached_cast) do
+                char.has_portrait = (self_ref:getExistingCharacterPortrait(char, book_info) ~= nil)
+            end
             self.scene_dialog:showCharacterPicker(
                 cached_cast,
                 title_label,
@@ -602,6 +605,10 @@ function GeminiIllustrator:scanAndSuggestCharacters(mode, force_refresh)
         -- Save to persistent cache
         self_ref:setCachedScenes(full_cache_key, characters)
 
+        for _, char in ipairs(characters) do
+            char.has_portrait = (self_ref:getExistingCharacterPortrait(char, book_info) ~= nil)
+        end
+
         -- Show character picker
         self_ref.scene_dialog:showCharacterPicker(
             characters,
@@ -617,16 +624,71 @@ function GeminiIllustrator:scanAndSuggestCharacters(mode, force_refresh)
     end)
 end
 
--- Generate Character Portrait and Display in Fullscreen Viewer
-function GeminiIllustrator:generateAndDisplayCharacterPortrait(char_obj, book_info)
+-- Helper to get the canonical portrait path for a character
+function GeminiIllustrator:getCharacterPortraitPath(char_obj, book_info)
+    local save_dir = (self.settings and self.settings:get("save_dir")) or "/mnt/us/koreader/bookart"
+    local portraits_dir = save_dir .. "/portraits"
+    pcall(function() os.execute(string.format('mkdir -p "%s"', portraits_dir)) end)
+    local safe_book = ((book_info and book_info.title) or "book"):gsub("[^%w_%-]", "_"):sub(1, 40)
+    local safe_name = ((char_obj and char_obj.name) or "char"):gsub("[^%w_%-]", "_"):sub(1, 40)
+    return string.format("%s/%s_%s.png", portraits_dir, safe_book, safe_name)
+end
+
+-- Check if a portrait already exists on disk (valid image > 1000 bytes)
+function GeminiIllustrator:getExistingCharacterPortrait(char_obj, book_info)
+    local target_path = self:getCharacterPortraitPath(char_obj, book_info)
+    local f = io.open(target_path, "rb")
+    if f then
+        local size = f:seek("end")
+        f:close()
+        if size and size > 1000 then
+            return target_path
+        end
+    end
+
+    -- Check legacy or direct fallback location: [save_dir]/char_[safe_name].png
+    local save_dir = (self.settings and self.settings:get("save_dir")) or "/mnt/us/koreader/bookart"
+    local safe_name = ((char_obj and char_obj.name) or "char"):gsub("[^%w_%-]", "_"):sub(1, 40)
+    local f2 = io.open(string.format("%s/char_%s.png", save_dir, safe_name), "rb")
+    if f2 then
+        local size = f2:seek("end")
+        f2:close()
+        if size and size > 1000 then
+            return string.format("%s/char_%s.png", save_dir, safe_name)
+        end
+    end
+
+    return nil
+end
+
+-- Generate Character Portrait or load existing one instantly (0 seconds, 0 quota)
+function GeminiIllustrator:generateAndDisplayCharacterPortrait(char_obj, book_info, force_regenerate)
     self:ensureInitialized()
     local self_ref = self
     local visual_prompt = char_obj.visual_prompt or string.format("Vertical portrait concept art of %s, %s", char_obj.name or "Character", char_obj.role or "")
-    local save_dir = self.settings:get("save_dir") or "/mnt/us/koreader/bookart"
-    local timestamp = os.time()
-    local safe_name = (char_obj.name or "character"):gsub("[^%w_%-]", "_")
-    local out_path = string.format("%s/char_%s_%d.png", save_dir, safe_name, timestamp)
+    local scene_obj = {
+        title = string.format("🎭 %s", char_obj.name or "Character"),
+        summary = string.format("%s\n\n%s", char_obj.role and ("Role: " .. char_obj.role) or "", char_obj.summary or ""),
+        visual_prompt = visual_prompt,
+        character = char_obj,
+    }
 
+    local existing_file = (not force_regenerate) and self:getExistingCharacterPortrait(char_obj, book_info)
+    if existing_file then
+        -- INSTANT 0-SECOND LOAD: Reuse existing portrait without calling API
+        self.scene_dialog:showGeneratedArtwork(
+            existing_file,
+            scene_obj,
+            book_info,
+            function()
+                -- Callback if user requests regeneration
+                self_ref:generateAndDisplayCharacterPortrait(char_obj, book_info, true)
+            end
+        )
+        return
+    end
+
+    local out_path = self:getCharacterPortraitPath(char_obj, book_info)
     local img_model = self.api:getImageModel()
     local info = InfoMessage:new{
         text = string.format(_("🎨 Generating portrait of %s with %s..."), char_obj.name or "Character", img_model),
@@ -638,12 +700,14 @@ function GeminiIllustrator:generateAndDisplayCharacterPortrait(char_obj, book_in
         UIManager:close(info)
 
         if generated_file then
-            local scene_obj = {
-                title = string.format("🎭 %s", char_obj.name or "Character"),
-                summary = string.format("%s\n\n%s", char_obj.role and ("Role: " .. char_obj.role) or "", char_obj.summary or ""),
-                visual_prompt = visual_prompt,
-            }
-            self_ref.scene_dialog:showGeneratedArtwork(generated_file, scene_obj, book_info)
+            self_ref.scene_dialog:showGeneratedArtwork(
+                generated_file,
+                scene_obj,
+                book_info,
+                function()
+                    self_ref:generateAndDisplayCharacterPortrait(char_obj, book_info, true)
+                end
+            )
         else
             UIManager:show(InfoMessage:new{
                 text = string.format(_("Failed to generate character portrait:\n%s"), tostring(err)),
