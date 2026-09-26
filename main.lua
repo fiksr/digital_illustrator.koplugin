@@ -143,6 +143,14 @@ function GeminiIllustrator:getSubMenuItems()
             end,
         },
         {
+            text = _("📁 Saved Illustrations Gallery..."),
+            help_text = _("Browse, view fullscreen, set as screensaver, or export illustrations."),
+            callback = function()
+                local book_info = self_ref.scanner:getBookInfo(self_ref.ui)
+                self_ref.scene_dialog:showGallery(book_info)
+            end,
+        },
+        {
             text = _("🖼️ Choose Image Model & Provider"),
             help_text = _("Pollinations (Free $0), Fal.ai ($0.003), Google ($0.07), or OpenAI"),
             sub_item_table_func = function()
@@ -569,8 +577,16 @@ function GeminiIllustrator:buildKeysMenu()
             end,
         },
         {
-            text = _("Import Keys from Kindle Files (/mnt/us/*.txt)"),
-            help_text = _("Reads gemini_token.txt, fal_token.txt, or openai_token.txt on Kindle root."),
+            text = _("📁 Browse Storage for Key File (*.txt)..."),
+            help_text = _("Select any .txt or .key file from Kindle storage to import keys."),
+            keep_menu_open = true,
+            callback = function(touchmenu_instance)
+                self_ref:browseAndImportKeyFile(touchmenu_instance)
+            end,
+        },
+        {
+            text = _("⚡ Quick Import from /mnt/us/*.txt"),
+            help_text = _("Auto-detects gemini_token.txt, fal_token.txt, or openai_token.txt on Kindle root."),
             keep_menu_open = true,
             callback = function(touchmenu_instance)
                 if self_ref.settings then
@@ -587,7 +603,7 @@ function GeminiIllustrator:buildKeysMenu()
                     if #msgs > 0 then
                         UIManager:show(InfoMessage:new{ text = table.concat(msgs, "\n"), timeout = 3 })
                     else
-                        UIManager:show(InfoMessage:new{ text = _("No token files found.\n(Place gemini_token.txt, fal_token.txt, or openai_token.txt on Kindle)"), timeout = 3.5 })
+                        UIManager:show(InfoMessage:new{ text = _("No standard token files found on Kindle root storage.\n(Use 'Browse Storage' above to select your file)"), timeout = 4 })
                     end
 
                     if touchmenu_instance and touchmenu_instance.updateItems then
@@ -597,6 +613,110 @@ function GeminiIllustrator:buildKeysMenu()
             end,
         },
     }
+end
+
+-- Open PathChooser to let the user browse and pick any key text file
+function GeminiIllustrator:browseAndImportKeyFile(touchmenu_instance)
+    self:ensureInitialized()
+    local self_ref = self
+
+    local ok_pc, PathChooser = pcall(require, "ui/widget/pathchooser")
+    if not ok_pc or not PathChooser then
+        self:showFallbackTxtPicker(touchmenu_instance)
+        return
+    end
+
+    local chooser
+    chooser = PathChooser:new{
+        path = "/mnt/us",
+        title = _("Select API Key File:"),
+        select_directory = false,
+        select_file = true,
+        show_files = true,
+        file_filter = function(filename)
+            local lower = filename:lower()
+            return lower:match("%.txt$") or lower:match("%.key$") or lower:match("%.token$") or lower:match("token") or lower:match("key")
+        end,
+        onConfirm = function(chosen_path)
+            if self_ref.settings then
+                local ok_imp, msg = self_ref.settings:importKeyFromArbitraryFile(chosen_path, "auto")
+                if ok_imp then
+                    UIManager:show(InfoMessage:new{ text = msg, timeout = 3.5 })
+                else
+                    UIManager:show(InfoMessage:new{ text = string.format(_("Import failed:\n%s"), msg), timeout = 3.5 })
+                end
+                if touchmenu_instance and touchmenu_instance.updateItems then
+                    touchmenu_instance:updateItems()
+                end
+            end
+        end,
+    }
+    UIManager:show(chooser)
+end
+
+-- Fallback TXT file picker if PathChooser cannot be instantiated
+function GeminiIllustrator:showFallbackTxtPicker(touchmenu_instance)
+    self:ensureInitialized()
+    local self_ref = self
+    local files = {}
+    local ok_lfs, lfs = pcall(require, "libs/libkoreader-lfs")
+    if not ok_lfs then ok_lfs, lfs = pcall(require, "lfs") end
+
+    if ok_lfs and lfs and lfs.dir then
+        pcall(function()
+            for fname in lfs.dir("/mnt/us") do
+                if fname:match("%.txt$") or fname:match("%.key$") then
+                    table.insert(files, "/mnt/us/" .. fname)
+                end
+            end
+        end)
+    else
+        local p = io.popen("ls /mnt/us/*.txt /mnt/us/*.key 2>/dev/null")
+        if p then
+            for line in p:lines() do
+                local fpath = line:gsub("^%s+", ""):gsub("%s+$", "")
+                if #fpath > 0 then table.insert(files, fpath) end
+            end
+            p:close()
+        end
+    end
+
+    if #files == 0 then
+        UIManager:show(InfoMessage:new{
+            text = _("No .txt files found in /mnt/us/\nPlease copy your key text file to Kindle root storage."),
+            timeout = 3.5,
+        })
+        return
+    end
+
+    local Menu = require("ui/widget/menu")
+    local items = {}
+    for _, fpath in ipairs(files) do
+        local fname = fpath:match("([^/\\]+)$") or fpath
+        table.insert(items, {
+            text = string.format("📄 %s", fname),
+            help_text = fpath,
+            callback = function()
+                local ok_imp, msg = self_ref.settings:importKeyFromArbitraryFile(fpath, "auto")
+                if ok_imp then
+                    UIManager:show(InfoMessage:new{ text = msg, timeout = 3.5 })
+                else
+                    UIManager:show(InfoMessage:new{ text = string.format(_("Import failed:\n%s"), msg), timeout = 3.5 })
+                end
+                if touchmenu_instance and touchmenu_instance.updateItems then
+                    touchmenu_instance:updateItems()
+                end
+            end,
+        })
+    end
+    table.insert(items, { text = _("Cancel"), callback = function() end })
+
+    local menu = Menu:new{
+        title = _("Select Key File from /mnt/us"),
+        item_table = items,
+        is_borderless = true,
+    }
+    UIManager:show(menu)
 end
 
 return GeminiIllustrator

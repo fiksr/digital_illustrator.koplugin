@@ -226,4 +226,57 @@ function Settings:importTokenFromFile(token_type, filename)
     return true, string.format("Key imported successfully! (%d chars from %s)", #token, found_path)
 end
 
+-- Import key from any arbitrary path chosen by the user (with provider auto-detection)
+function Settings:importKeyFromArbitraryFile(filepath, target_provider)
+    if not filepath then return false, "No file path provided." end
+
+    local f = io.open(filepath, "r")
+    if not f then
+        return false, "Could not open file: " .. tostring(filepath)
+    end
+
+    local token = f:read("*a")
+    f:close()
+
+    if not token or #token == 0 then
+        return false, "The selected file is empty."
+    end
+
+    token = token:gsub("^%s+", ""):gsub("%s+$", ""):gsub("[\r\n]", "")
+
+    if #token < 8 then
+        return false, "Key inside file is too short (length: " .. #token .. ")."
+    end
+
+    local basename = filepath:match("([^/\\]+)$") or filepath
+    local lower = basename:lower()
+
+    -- Auto-detect provider if auto or unspecified
+    if not target_provider or target_provider == "auto" then
+        if token:match("^AIza") or lower:match("gemini") or lower:match("google") then
+            target_provider = "gemini"
+        elseif token:match("^sk%-") or lower:match("openai") or lower:match("dall") then
+            target_provider = "openai"
+        elseif lower:match("fal") or lower:match("flux") then
+            target_provider = "fal"
+        else
+            -- Default to Gemini if starting with standard AI token
+            target_provider = "gemini"
+        end
+    end
+
+    local setting_key = "api_key"
+    local provider_name = "Google Gemini"
+    if target_provider == "fal" then
+        setting_key = "fal_key"
+        provider_name = "Fal.ai"
+    elseif target_provider == "openai" then
+        setting_key = "openai_key"
+        provider_name = "OpenAI"
+    end
+
+    self:set(setting_key, token)
+    return true, string.format("%s Key saved! (%d chars from %s)", provider_name, #token, basename)
+end
+
 return Settings
