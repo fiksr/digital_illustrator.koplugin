@@ -204,7 +204,7 @@ function Scanner:getCurrentChapterText(ui)
     return "", cur_page, cur_page, "Current Page"
 end
 
--- Extract text for a specified range of pages (e.g. 15 to 25)
+-- Extract text for a specified range of pages (e.g. 15 to 25 or 1 to 500)
 function Scanner:getPageRangeText(ui, start_page, end_page)
     ui = resolveReaderUI(ui)
     if not ui or not ui.document then return "", start_page, end_page end
@@ -215,7 +215,7 @@ function Scanner:getPageRangeText(ui, start_page, end_page)
     start_page = math.max(1, math.min(start_page, total_pages))
     end_page = math.max(start_page, math.min(end_page, total_pages))
 
-    -- If CREngine has getXPointerForPage
+    -- 1. Fast extraction for CREngine (EPUB, MOBI, FB2, AZW3) via XPointers
     if doc.getTextFromXPointers and doc.getXPointerForPage then
         local xp0 = doc:getXPointerForPage(start_page)
         local xp1 = doc:getXPointerForPage(math.min(end_page + 1, total_pages))
@@ -227,7 +227,45 @@ function Scanner:getPageRangeText(ui, start_page, end_page)
         end
     end
 
-    -- Fallback: Use current page text
+    -- 2. Fallback for MuPDF, PDF, DjVu: page-by-page text extraction
+    if doc.getPageText or doc.getTextBoxes then
+        local collected = {}
+        for p = start_page, end_page do
+            local p_txt = ""
+            if doc.getPageText then
+                local ok, txt = pcall(doc.getPageText, doc, p)
+                if ok and txt and #txt > 0 then
+                    p_txt = txt
+                end
+            end
+            if #p_txt == 0 and doc.getTextBoxes then
+                local ok, boxes = pcall(doc.getTextBoxes, doc, p)
+                if ok and boxes and type(boxes) == "table" then
+                    local lines = {}
+                    for _, line in ipairs(boxes) do
+                        local words = {}
+                        for _, word_item in ipairs(line) do
+                            if word_item.word and #word_item.word > 0 then
+                                table.insert(words, word_item.word)
+                            end
+                        end
+                        if #words > 0 then
+                            table.insert(lines, table.concat(words, " "))
+                        end
+                    end
+                    p_txt = table.concat(lines, "\n")
+                end
+            end
+            if #p_txt > 0 then
+                table.insert(collected, p_txt)
+            end
+        end
+        if #collected > 0 then
+            return table.concat(collected, "\n\n"), start_page, end_page
+        end
+    end
+
+    -- 3. Final Fallback: Use current page text
     local txt = self:getCurrentPageText(ui)
     return txt, start_page, end_page
 end
