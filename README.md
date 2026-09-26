@@ -14,8 +14,8 @@
   - **Current Page**: Directly visualize the open page.
   - **Highlight Selection**: Select any paragraph $\rightarrow$ tap **✨ Gemini Illustrate** in the popup menu.
 - ⚡ **2026 Google Gemini Models**:
-  - **Text Brain**: `gemini-3.1-flash-preview` (**500 Requests/Day high-quota limit**), `gemini-3.8-flash`, `gemini-2.5-flash`, `gemini-2.5-pro`.
-  - **Image Generation**: `gemini-3.1-flash-image` (*Nano Banana 2*), `gemini-3-pro-image`, `imagen-4.0-generate-001`, `imagen-3.0-generate-002`.
+  - **Text Brain**: `gemini-3.1-flash-lite` (**500 Requests/Day high-quota limit**), `gemini-3.8-flash`, `gemini-2.5-flash`, `gemini-2.0-flash`, `gemini-2.5-pro`.
+  - **Image Generation**: `gemini-3.1-flash-lite-image` (*Nano Banana 2 Lite - 2.7x faster*), `gemini-3.1-flash-image` (*Nano Banana 2*), `gemini-3-pro-image` (*Nano Banana Pro*), `imagen-4.0-generate-001`, `imagen-3.0-generate-002`.
 - 🎨 **Genre-Aware & E-Ink Optimized Prompt Engine**:
   - Reads book title, author, and synopsis to automatically calibrate tone (Sci-Fi, Dark Fantasy, Cyberpunk, Gothic Horror, Historical Drama, Noir).
   - Enforces high-contrast chiaroscuro, crisp linework, and deep blacks for monochrome 300 PPI E-Ink readability.

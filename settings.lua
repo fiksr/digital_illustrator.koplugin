@@ -8,27 +8,29 @@ Settings.__index = Settings
 
 local DEFAULT_SETTINGS = {
     api_key = "",
-    text_model = "gemini-3.1-flash-preview", -- 500 RPD high quota
-    image_model = "gemini-3.1-flash-image",  -- 2026 Nano Banana 2
-    resolution = "768x1024",                 -- Fast, responsive for Kindle Wi-Fi & 3:4 E-Ink
-    art_style = "auto_genre",                -- Automatically adapt to book genre
+    text_model = "gemini-3.1-flash-lite",       -- 500 RPD high quota
+    image_model = "gemini-3.1-flash-lite-image", -- Nano Banana 2 Lite (Fastest for Kindle)
+    resolution = "768x1024",                     -- Fast, responsive for Kindle Wi-Fi & 3:4 E-Ink
+    art_style = "auto_genre",                    -- Automatically adapt to book genre
     save_dir = "/mnt/us/koreader/bookart",
     timeout = 25,
     auto_contrast_prompt = true,
 }
 
 Settings.TEXT_MODELS = {
-    { id = "gemini-3.1-flash-preview", name = "Gemini 3.1 Flash Preview (500 RPD - Recommended)", desc = "High rate limits, ultra-fast chapter analysis" },
-    { id = "gemini-3.8-flash",         name = "Gemini 3.8 Flash (2026 Flagship)",                 desc = "Deep contextual understanding" },
-    { id = "gemini-2.5-flash",         name = "Gemini 2.5 Flash",                                 desc = "Stable high-speed model" },
-    { id = "gemini-2.5-pro",           name = "Gemini 2.5 Pro",                                   desc = "Maximum literary reasoning" },
+    { id = "gemini-3.1-flash-lite", name = "Gemini 3.1 Flash Lite (500 RPD - Recommended)", desc = "High rate limits, ultra-fast chapter analysis" },
+    { id = "gemini-3.8-flash",      name = "Gemini 3.8 Flash (2026 Flagship)",              desc = "Deep contextual understanding" },
+    { id = "gemini-2.5-flash",      name = "Gemini 2.5 Flash",                              desc = "Stable high-speed model" },
+    { id = "gemini-2.0-flash",      name = "Gemini 2.0 Flash",                              desc = "Fast legacy flash model" },
+    { id = "gemini-2.5-pro",        name = "Gemini 2.5 Pro",                                desc = "Maximum literary reasoning" },
 }
 
 Settings.IMAGE_MODELS = {
-    { id = "gemini-3.1-flash-image",  name = "Gemini 3.1 Flash Image (Nano Banana 2)", desc = "Fast 2026 multimodal image model" },
-    { id = "gemini-3-pro-image",      name = "Gemini 3 Pro Image (Nano Banana Pro)",   desc = "High aesthetic composition" },
-    { id = "imagen-4.0-generate-001", name = "Google Imagen 4.0 Standard",             desc = "Photorealistic and stylistic rendering" },
-    { id = "imagen-3.0-generate-002", name = "Google Imagen 3.0",                      desc = "Proven high-detail illustration model" },
+    { id = "gemini-3.1-flash-lite-image", name = "Nano Banana 2 Lite (Gemini 3.1 Flash Lite Image)", desc = "Fastest image generation (2.7x speed, ideal for Kindle)" },
+    { id = "gemini-3.1-flash-image",      name = "Nano Banana 2 (Gemini 3.1 Flash Image)",          desc = "High-quality multimodal image generation" },
+    { id = "gemini-3-pro-image",          name = "Nano Banana Pro (Gemini 3 Pro Image)",            desc = "Maximum artistic detail & composition" },
+    { id = "imagen-4.0-generate-001",     name = "Google Imagen 4.0 Standard",                      desc = "Photorealistic and stylistic rendering" },
+    { id = "imagen-3.0-generate-002",     name = "Google Imagen 3.0",                               desc = "Proven high-detail illustration model" },
 }
 
 Settings.RESOLUTIONS = {

@@ -467,14 +467,14 @@ function GeminiIllustrator:buildSettingsMenu()
         },
         {
             text_func = function()
-                local cur = (self_ref.settings and self_ref.settings:get("text_model")) or "gemini-3.1-flash-preview"
+                local cur = (self_ref.settings and self_ref.settings:get("text_model")) or "gemini-3.1-flash-lite"
                 return string.format(_("Text / Analysis Model: %s"), cur)
             end,
             sub_item_table = text_model_items,
         },
         {
             text_func = function()
-                local cur = (self_ref.settings and self_ref.settings:get("image_model")) or "gemini-3.1-flash-image"
+                local cur = (self_ref.settings and self_ref.settings:get("image_model")) or "gemini-3.1-flash-lite-image"
                 return string.format(_("Image Model: %s"), cur)
             end,
             sub_item_table = img_model_items,

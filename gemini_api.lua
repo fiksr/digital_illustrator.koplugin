@@ -70,11 +70,11 @@ function API:getKey()
 end
 
 function API:getTextModel()
-    return self.settings:get("text_model") or "gemini-3.1-flash-preview"
+    return self.settings:get("text_model") or "gemini-3.1-flash-lite"
 end
 
 function API:getImageModel()
-    return self.settings:get("image_model") or "gemini-3.1-flash-image"
+    return self.settings:get("image_model") or "gemini-3.1-flash-lite-image"
 end
 
 function API:getTimeout()
@@ -273,14 +273,15 @@ function API:generateImage(visual_prompt, output_filepath)
             }
         }
     else
-        -- Gemini Native / Nano Banana / Interactions endpoint
-        url = string.format("https://generativelanguage.googleapis.com/v1beta/interactions?key=%s", key)
+        -- Gemini 3.1 Flash Image & Flash Lite Image (Nano Banana 2 / Lite)
+        url = string.format("https://generativelanguage.googleapis.com/v1beta/models/%s:generateContent?key=%s", model, key)
         payload = {
-            model = model,
-            input = {
+            contents = {
                 {
-                    type = "text",
-                    text = visual_prompt
+                    role = "user",
+                    parts = {
+                        { text = visual_prompt }
+                    }
                 }
             }
         }
