@@ -98,20 +98,39 @@ function Settings:set(key, value)
     self:save()
 end
 
--- Import token from /mnt/us/gemini_token.txt
-function Settings:importTokenFromFile(filepath)
-    filepath = filepath or "/mnt/us/gemini_token.txt"
-    local f = io.open(filepath, "r")
-    if not f then
-        f = io.open("gemini_token.txt", "r")
+-- Import token from /mnt/us/gemini_token.txt or candidate paths (does NOT delete file)
+function Settings:importTokenFromFile(specified_filepath)
+    local candidate_paths = {}
+    if specified_filepath and #specified_filepath > 0 then
+        table.insert(candidate_paths, specified_filepath)
     end
 
-    if not f then
-        return false, "File not found: " .. filepath .. "\n(Create gemini_token.txt on Kindle root storage)"
+    table.insert(candidate_paths, "/mnt/us/gemini_token.txt")
+    table.insert(candidate_paths, "/mnt/us/gemini_token.txt.txt") -- Windows double-extension protection
+    table.insert(candidate_paths, "/mnt/us/gemini_token")
+    table.insert(candidate_paths, "/mnt/us/koreader/gemini_token.txt")
+    table.insert(candidate_paths, "/mnt/base-us/gemini_token.txt")
+    table.insert(candidate_paths, "gemini_token.txt")
+    table.insert(candidate_paths, "gemini_token.txt.txt")
+
+    local found_file = nil
+    local found_path = nil
+
+    for _, path in ipairs(candidate_paths) do
+        local f = io.open(path, "r")
+        if f then
+            found_file = f
+            found_path = path
+            break
+        end
     end
 
-    local token = f:read("*a")
-    f:close()
+    if not found_file then
+        return false, "File not found: /mnt/us/gemini_token.txt\n(Make sure file is placed on Kindle root drive)"
+    end
+
+    local token = found_file:read("*a")
+    found_file:close()
 
     if not token then
         return false, "Could not read token file."
@@ -125,12 +144,7 @@ function Settings:importTokenFromFile(filepath)
 
     self:set("api_key", token)
 
-    -- Remove for security
-    pcall(function()
-        os.remove(filepath)
-    end)
-
-    return true, "Gemini API key imported successfully! (Removed gemini_token.txt for security)"
+    return true, string.format("Gemini API key imported successfully! (%d chars from %s)", #token, found_path)
 end
 
 return Settings
