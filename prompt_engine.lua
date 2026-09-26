@@ -117,6 +117,41 @@ Output STRICTLY a JSON array of objects with no surrounding markdown formatting 
 ]
 ]], title, author, (#description > 0 and ("Book context: " .. description) or ""), web_note, style_note)
 
+-- Builds prompt for Extracting Characters directly from Internet Search Grounding
+function PromptEngine:buildInternetCharacterAnalysisInstruction(book_info)
+    local title = (book_info and book_info.title) or "Unknown Book"
+    local author = (book_info and book_info.author) or "Unknown Author"
+    local description = (book_info and book_info.description) or ""
+    local style_pref = self.settings:get("art_style") or "auto_genre"
+    local style_note = STYLE_MODIFIERS[style_pref] or ""
+
+    local prompt = string.format([[
+You are an expert literary visualizer and character analyst equipped with Google Search.
+The user is reading the book "%s" by %s. %s
+
+Your task:
+1. Use Google Search to look up the canonical character list, Wikipedia page, literary summary, character bios, and fandom entries for "%s" by %s.
+2. Identify ALL major and important recurring characters (protagonists, antagonists, supporting characters, allies). Extract 15 to 20 key characters.
+3. Language & Names:
+   - If the book is originally or commonly known in Serbian, Croatian, Bosnian, or the edition is translated, output names in their authentic nominative form (e.g. "Petar", "Mihailo", "Geralt", "Viola", "Porša", "Paul Atreides").
+   - Roles and summaries should be clear and concise.
+4. For each character, deduce their exact canonical physical appearance, age, facial structure, eyes, hair, clothing/armor of their era/setting, demeanor, and signature traits.
+5. Construct a rich 3:4 vertical portrait prompt:
+   - VERTICAL PORTRAIT COMPOSITION (3:4 aspect ratio, upper-body bust portrait framing).
+   - %s
+   - Strictly avoid future plot spoilers.
+
+Output STRICTLY a JSON array of objects with no surrounding markdown formatting or backticks:
+[
+  {
+    "name": "Original Character Name (in Nominative Case)",
+    "role": "Role (e.g. Protagonist / Glavni junak, Vojskovođa, Zapovednik dirižabla, Detektiv)",
+    "summary": "1-2 sentence non-spoiler summary of who they are in the story",
+    "visual_prompt": "Vertical portrait composition (3:4 aspect ratio, upper-body bust portrait), masterpiece character concept art of [Name], [age] years old, [detailed face, eyes, hair, expression, scars], wearing [authentic period attire/clothing], dramatic side chiaroscuro lighting, deep black shadows, stark monochromatic contrast, crisp linework, masterpiece for e-ink display."
+  }
+]
+]], title, author, (#description > 0 and ("Context: " .. description) or ""), title, author, style_note)
+
     return prompt
 end
 

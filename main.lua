@@ -132,17 +132,24 @@ function GeminiIllustrator:getSubMenuItems()
             end,
         },
         {
+            text = _("📚 Cast of Characters (Full Book pp. 1-500)"),
+            help_text = _("Scans all pages read so far and extracts full cast of characters."),
+            callback = function()
+                self_ref:scanAndSuggestCharacters("book")
+            end,
+        },
+        {
+            text = _("🌐 Cast of Characters (Search Internet)"),
+            help_text = _("Looks up canonical characters from Wikipedia/literary databases without scanning book."),
+            callback = function()
+                self_ref:scanAndSuggestCharacters("internet")
+            end,
+        },
+        {
             text = _("🎭 Cast of Characters (Current Chapter)"),
             help_text = _("Extracts characters in this chapter & generates portrait concept art."),
             callback = function()
                 self_ref:scanAndSuggestCharacters("chapter")
-            end,
-        },
-        {
-            text = _("📚 Cast of Characters (Full Book to Here)"),
-            help_text = _("Scans all characters met so far without spoilers."),
-            callback = function()
-                self_ref:scanAndSuggestCharacters("book")
             end,
         },
         {
@@ -168,6 +175,26 @@ function GeminiIllustrator:getSubMenuItems()
             callback = function()
                 local book_info = self_ref.scanner:getBookInfo(self_ref.ui)
                 self_ref.scene_dialog:showGallery(book_info)
+            end,
+        },
+        {
+            text = _("🌐 Google Search Grounding"),
+            help_text = _("Toggle web search for real-world visual descriptions."),
+            checked_func = function()
+                return self_ref.settings:get("enable_web_search") == true
+            end,
+            callback = function(touchmenu_instance)
+                local cur = self_ref.settings:get("enable_web_search") == true
+                self_ref.settings:set("enable_web_search", not cur)
+                self_ref.settings:save()
+                if touchmenu_instance and touchmenu_instance.updateItems then
+                    touchmenu_instance:updateItems()
+                end
+                local state_txt = (not cur) and _("Enabled") or _("Disabled")
+                UIManager:show(InfoMessage:new{
+                    text = string.format(_("Google Search Grounding: %s"), state_txt),
+                    timeout = 2,
+                })
             end,
         },
         {
@@ -466,6 +493,9 @@ function GeminiIllustrator:scanAndSuggestCharacters(mode, force_refresh)
         text_to_analyze = chapter_text
         title_label = string.format("%s Characters (pp. %d-%d)", ch_title, s_p, e_p)
         cache_key_segment = string.format("cast_ch_%s_%d_%d", ch_title, s_p, e_p)
+    elseif mode == "internet" then
+        title_label = string.format(_("Internet Cast (%s)"), book_info.title or "Book")
+        cache_key_segment = "cast_internet"
     else
         local book_text, s_p, e_p = self.scanner:getTextUpToCurrentPage(self.ui)
         text_to_analyze = book_text
@@ -501,7 +531,7 @@ function GeminiIllustrator:scanAndSuggestCharacters(mode, force_refresh)
         end
     end
 
-    if #text_to_analyze < 30 then
+    if mode ~= "internet" and #text_to_analyze < 30 then
         UIManager:show(InfoMessage:new{
             text = _("Could not extract text from document.\nPlease ensure a book is currently open."),
             timeout = 3,
@@ -510,16 +540,29 @@ function GeminiIllustrator:scanAndSuggestCharacters(mode, force_refresh)
     end
 
     local text_kb = math.max(1, math.floor(#text_to_analyze / 1024))
-    local enable_web_search = self.settings:get("enable_web_search") == true
+    local enable_web_search = (mode == "internet") or (self.settings:get("enable_web_search") == true)
     local search_hint = enable_web_search and " [+Google Search]" or ""
+    local msg_text = ""
+    if mode == "internet" then
+        msg_text = string.format(_("🌐 Gemini is searching the web for characters in '%s' by %s..."), book_info.title or "Book", book_info.author or "Author")
+    else
+        msg_text = string.format(_("🧠 Gemini is identifying characters from %s (%d KB text)%s..."), title_label, text_kb, search_hint)
+    end
+
     local info = InfoMessage:new{
-        text = string.format(_("🧠 Gemini is identifying characters from %s (%d KB text)%s..."), title_label, text_kb, search_hint),
+        text = msg_text,
     }
     UIManager:show(info)
 
     UIManager:scheduleIn(0.1, function()
-        local sys_prompt = self_ref.prompt_engine:buildCharacterAnalysisInstruction(book_info, enable_web_search)
-        local characters, err = self_ref.api:extractCharacters(text_to_analyze, sys_prompt, enable_web_search)
+        local characters, err = nil, nil
+        if mode == "internet" then
+            local sys_prompt = self_ref.prompt_engine:buildInternetCharacterAnalysisInstruction(book_info)
+            characters, err = self_ref.api:extractCharactersFromInternet(book_info, sys_prompt)
+        else
+            local sys_prompt = self_ref.prompt_engine:buildCharacterAnalysisInstruction(book_info, enable_web_search)
+            characters, err = self_ref.api:extractCharacters(text_to_analyze, sys_prompt, enable_web_search)
+        end
         UIManager:close(info)
 
         if not characters or #characters == 0 then

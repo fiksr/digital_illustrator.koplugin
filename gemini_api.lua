@@ -319,7 +319,6 @@ function API:extractCharacters(text_to_analyze, system_instruction, enable_web_s
             }
         },
         generationConfig = {
-            response_mime_type = "application/json",
             temperature = 0.3,
         }
     }
@@ -331,6 +330,9 @@ function API:extractCharacters(text_to_analyze, system_instruction, enable_web_s
                 google_search = {}
             }
         }
+        -- Note: When tools/google_search is present, response_mime_type is omitted to prevent API 400 error
+    else
+        payload.generationConfig.response_mime_type = "application/json"
     end
 
     local body_json = encodeJSON(payload)
@@ -381,9 +383,10 @@ function API:extractCharacters(text_to_analyze, system_instruction, enable_web_s
         return nil, "No character content returned in Gemini candidate."
     end
 
-    text_content = text_content:gsub("^```json%s*", ""):gsub("^```%s*", ""):gsub("%s*```$", "")
+    text_content = text_content:gsub("^%s*```json%s*", ""):gsub("^%s*```%s*", ""):gsub("%s*```%s*$", "")
+    local json_arr = text_content:match("(%b[])") or text_content:match("(%b{})") or text_content
 
-    local characters = decodeJSON(text_content)
+    local characters = decodeJSON(json_arr)
     if type(characters) == "table" and #characters > 0 then
         return characters
     elseif type(characters) == "table" and characters.characters and #characters.characters > 0 then
@@ -391,6 +394,104 @@ function API:extractCharacters(text_to_analyze, system_instruction, enable_web_s
     end
 
     return nil, "Could not parse characters array from Gemini response."
+end
+
+-- Extract Cast of Characters by Searching the Internet directly via Google Search Grounding
+function API:extractCharactersFromInternet(book_info, system_instruction)
+    local key = self:getGeminiKey()
+    if #key == 0 then
+        return nil, "Gemini API key is not configured."
+    end
+
+    local model = self:getTextModel()
+    local url = string.format(
+        "https://generativelanguage.googleapis.com/v1beta/models/%s:generateContent?key=%s",
+        model, key
+    )
+
+    local title = (book_info and book_info.title) or "Book"
+    local author = (book_info and book_info.author) or "Author"
+    local user_prompt = string.format("Search the web for the complete cast of characters in the book '%s' by %s. Provide canonical character profiles and visual descriptions for portrait art generation.", title, author)
+
+    local payload = {
+        system_instruction = {
+            parts = { { text = system_instruction } }
+        },
+        contents = {
+            {
+                role = "user",
+                parts = { { text = user_prompt } }
+            }
+        },
+        tools = {
+            {
+                google_search = {}
+            }
+        },
+        generationConfig = {
+            temperature = 0.3,
+        }
+    }
+
+    local body_json = encodeJSON(payload)
+    local tmp_payload = "/tmp/gemini_char_search.json"
+    local f = io.open(tmp_payload, "w")
+    if not f then
+        tmp_payload = "gemini_char_search.json"
+        f = io.open(tmp_payload, "w")
+    end
+    if f then
+        f:write(body_json)
+        f:close()
+    end
+
+    local timeout = math.max(self:getTimeout(), 60)
+    local curl_cmd = string.format(
+        'curl -s -k -m %d -X POST -H "Content-Type: application/json" -d @%s "%s" -w "\\nHTTP_CODE:%%{http_code}" 2>/dev/null',
+        timeout, tmp_payload, url
+    )
+
+    local handle = io.popen(curl_cmd)
+    if not handle then
+        pcall(function() os.remove(tmp_payload) end)
+        return nil, "Failed to launch curl process."
+    end
+
+    local raw = handle:read("*a")
+    handle:close()
+    pcall(function() os.remove(tmp_payload) end)
+
+    if not raw or #raw == 0 then
+        return nil, "Empty response or timeout during internet character search."
+    end
+
+    local resp_body, http_code = raw:match("^(.-)\nHTTP_CODE:(%d%d%d)%s*$")
+    if http_code ~= "200" then
+        return nil, string.format("Gemini API Error (HTTP %s): %s", tostring(http_code), tostring(resp_body):sub(1, 150))
+    end
+
+    local decoded = decodeJSON(resp_body)
+    if not decoded or not decoded.candidates or not decoded.candidates[1] then
+        return nil, "Invalid JSON structure received from Gemini."
+    end
+
+    local candidate = decoded.candidates[1]
+    local text_content = candidate.content and candidate.content.parts and candidate.content.parts[1] and candidate.content.parts[1].text
+    if not text_content then
+        return nil, "No character content returned in Gemini search candidate."
+    end
+
+    text_content = text_content:gsub("^%s*```json%s*", ""):gsub("^%s*```%s*", ""):gsub("%s*```%s*$", "")
+    local json_arr = text_content:match("(%b[])") or text_content:match("(%b{})") or text_content
+
+    local characters = decodeJSON(json_arr)
+    if type(characters) == "table" and #characters > 0 then
+        return characters
+    elseif type(characters) == "table" and characters.characters and #characters.characters > 0 then
+        return characters.characters
+    end
+
+    return nil, "Could not parse characters array from Gemini web search response."
 end
 
 -- Generate Image: Dispatches to chosen provider (Pollinations, Fal.ai, Google, OpenAI)
@@ -594,34 +695,22 @@ function API:generateImage(visual_prompt, output_filepath)
     local payload = {}
 
     local portrait_prompt = "Vertical portrait orientation (3:4 aspect ratio, vertical composition, taller than wide). " .. visual_prompt
-    if model:match("^imagen") then
-        url = string.format("https://generativelanguage.googleapis.com/v1beta/models/%s:predict?key=%s", model, gemini_key)
-        payload = {
-            instances = {
-                { prompt = portrait_prompt }
-            },
-            parameters = {
-                sampleCount = 1,
-                aspectRatio = "3:4",
-                outputMimeType = "image/png"
-            }
-        }
-    else
-        url = string.format("https://generativelanguage.googleapis.com/v1beta/models/%s:generateContent?key=%s", model, gemini_key)
-        payload = {
-            contents = {
-                {
-                    role = "user",
-                    parts = {
-                        { text = portrait_prompt }
-                    }
-                }
-            },
-            generationConfig = {
-                response_mime_type = "image/png"
-            }
-        }
+    local google_img_model = model
+    if not google_img_model:match("^imagen") then
+        google_img_model = "imagen-3.0-generate-002"
     end
+
+    url = string.format("https://generativelanguage.googleapis.com/v1beta/models/%s:predict?key=%s", google_img_model, gemini_key)
+    payload = {
+        instances = {
+            { prompt = portrait_prompt }
+        },
+        parameters = {
+            sampleCount = 1,
+            aspectRatio = "3:4",
+            outputMimeType = "image/png"
+        }
+    }
 
     local body_json = encodeJSON(payload)
     local f = io.open(tmp_payload, "w")
