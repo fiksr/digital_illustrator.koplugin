@@ -9,6 +9,7 @@ local ImageViewer = require("ui/widget/imageviewer")
 local InfoMessage = require("ui/widget/infomessage")
 local InputDialog = require("ui/widget/inputdialog")
 local Menu = require("ui/widget/menu")
+local TextViewer = require("ui/widget/textviewer")
 local UIManager = require("ui/uimanager")
 
 local SceneDialog = {}
@@ -121,63 +122,90 @@ function SceneDialog:showCharacterCard(char, book_info, on_generate_callback, on
     local visual_desc = char.visual_prompt or ""
     local has_portrait = (char.has_portrait == true)
 
-    local card_text = string.format(_("🎭 Role:\n%s\n\n📖 Story & Background:\n%s"), role, summary)
+    local card_text = string.format("🎭 ROLE / ULOGA:\n%s\n\n📖 STORY & BIO / OPIS:\n%s", role, summary)
 
     if #visual_desc > 0 then
         local clean_vis = visual_desc:gsub("^Vertical portrait[^,]*,%s*", ""):gsub("^masterpiece[^,]*,%s*", "")
         if #clean_vis > 0 then
-            card_text = card_text .. string.format(_("\n\n🎨 Visual Concept:\n%s"), clean_vis)
+            card_text = card_text .. string.format("\n\n🎨 VISUAL APPEARANCE / IZGLED:\n%s", clean_vis)
         end
     end
 
-    local dialog
+    local viewer
     local row1 = {}
 
     if has_portrait then
         table.insert(row1, {
             text = _("🖼️ View Portrait"),
-            is_enter_default = true,
             callback = function()
-                UIManager:close(dialog)
+                UIManager:close(viewer)
                 if on_view_callback then on_view_callback(char) end
             end,
         })
         table.insert(row1, {
             text = _("🔄 Regenerate Portrait"),
             callback = function()
-                UIManager:close(dialog)
+                UIManager:close(viewer)
                 if on_generate_callback then on_generate_callback(char, true) end
             end,
         })
     else
         table.insert(row1, {
             text = _("🎨 Generate AI Portrait"),
-            is_enter_default = true,
             callback = function()
-                UIManager:close(dialog)
+                UIManager:close(viewer)
                 if on_generate_callback then on_generate_callback(char, false) end
             end,
         })
     end
 
-    local row2 = {
-        {
-            text = _("Close"),
-            callback = function()
-                UIManager:close(dialog)
-            end,
-        },
-    }
+    table.insert(row1, {
+        text = _("Close"),
+        callback = function()
+            UIManager:close(viewer)
+        end,
+    })
 
-    dialog = ButtonDialog:new{
+    viewer = TextViewer:new{
         title = string.format("🎭 %s (%s)", name, role),
+        title_multilines = true,
         text = card_text,
-        buttons = {
+        buttons_table = {
             row1,
-            row2,
         },
     }
-    UIManager:show(dialog)
+    UIManager:show(viewer)
+end
+
+-- Fullscreen text viewer for Character Bio when viewing artwork
+function SceneDialog:showCharacterBioViewer(title, bio_text, image_path, scene_info, book_info, on_regenerate)
+    local self_ref = self
+    local viewer
+    viewer = TextViewer:new{
+        title = title or _("Character Dossier"),
+        title_multilines = true,
+        text = bio_text or _("No bio available."),
+        buttons_table = {
+            {
+                {
+                    text = _("🖼️ Back to Image"),
+                    callback = function()
+                        UIManager:close(viewer)
+                        local v = ImageViewer:new{ file = image_path, with_title = true, title = title }
+                        UIManager:show(v)
+                        self_ref:showArtworkActions(image_path, scene_info, book_info, on_regenerate)
+                    end,
+                },
+                {
+                    text = _("Close"),
+                    callback = function()
+                        UIManager:close(viewer)
+                    end,
+                },
+            }
+        },
+    }
+    UIManager:show(viewer)
 end
 
 -- Show Fullscreen Image Viewer with Quick Action Buttons
@@ -225,6 +253,16 @@ function SceneDialog:showArtworkActions(image_path, scene_info, book_info, on_re
     }
 
     local row2 = {}
+    if scene_info and scene_info.summary and #scene_info.summary > 0 then
+        table.insert(row2, {
+            text = _("📖 Read Bio / Info"),
+            callback = function()
+                UIManager:close(dialog)
+                self_ref:showCharacterBioViewer(title, scene_info.summary, image_path, scene_info, book_info, on_regenerate)
+            end,
+        })
+    end
+
     if on_regenerate then
         table.insert(row2, {
             text = _("🔄 Regenerate with AI"),
