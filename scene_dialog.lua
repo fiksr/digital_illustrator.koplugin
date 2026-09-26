@@ -20,9 +20,19 @@ function SceneDialog:new(settings)
     return self
 end
 
--- Show list of AI-suggested scenes from chapter analysis
-function SceneDialog:showScenePicker(scenes, chapter_title, on_select_callback)
+-- Show list of AI-suggested scenes from chapter analysis (supports cached results and re-scan)
+function SceneDialog:showScenePicker(scenes, chapter_title, on_select_callback, on_rescan_callback, is_cached)
     local menu_items = {}
+
+    if on_rescan_callback then
+        table.insert(menu_items, {
+            text = _("🔄 Re-scan Chapter (Get New AI Scenes)"),
+            help_text = _("Bypass cache and ask Gemini to analyze the chapter again."),
+            callback = function()
+                on_rescan_callback()
+            end,
+        })
+    end
 
     for idx, scene in ipairs(scenes) do
         local title = scene.title or string.format(_("Scene #%d"), idx)
@@ -46,8 +56,9 @@ function SceneDialog:showScenePicker(scenes, chapter_title, on_select_callback)
         callback = function() end,
     })
 
+    local title_prefix = is_cached and _("⚡ Cached Scenes: ") or _("✨ AI Scenes: ")
     local picker_menu = Menu:new{
-        title = string.format(_("AI Scenes: %s"), chapter_title or _("Chapter")),
+        title = title_prefix .. (chapter_title or _("Chapter")),
         item_table = menu_items,
         is_borderless = true,
     }

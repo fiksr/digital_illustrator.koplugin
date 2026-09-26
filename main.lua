@@ -194,8 +194,69 @@ function GeminiIllustrator:getSubMenuItems()
     }
 end
 
--- Workflow 1: Scan Chapter or Range, Present Scene Choices, and Generate
-function GeminiIllustrator:scanAndSuggestScenes(mode, custom_start, custom_end)
+local json = nil
+local ok_j, mod_j = pcall(require, "rapidjson")
+if ok_j and mod_j and mod_j.decode then
+    json = mod_j
+else
+    ok_j, mod_j = pcall(require, "json")
+    if ok_j and mod_j and mod_j.decode then
+        json = mod_j
+    end
+end
+
+-- Persistent Chapter Cache Helpers
+function GeminiIllustrator:getCacheFilePath(key)
+    local save_dir = (self.settings and self.settings:get("save_dir")) or "/mnt/us/koreader/bookart"
+    local cache_dir = save_dir .. "/cache"
+    pcall(function() os.execute(string.format('mkdir -p "%s"', cache_dir)) end)
+    local safe_key = key:gsub("[^%w_%-]", "_")
+    return string.format("%s/%s.json", cache_dir, safe_key)
+end
+
+function GeminiIllustrator:getCachedScenes(key)
+    if self.mem_cache and self.mem_cache[key] then
+        return self.mem_cache[key]
+    end
+    local path = self:getCacheFilePath(key)
+    local f = io.open(path, "r")
+    if not f then return nil end
+    local content = f:read("*a")
+    f:close()
+    if not content or #content == 0 then return nil end
+
+    local decoded = nil
+    if json and json.decode then
+        local ok, res = pcall(json.decode, content)
+        if ok and res then decoded = res end
+    end
+    if decoded and type(decoded) == "table" and #decoded > 0 then
+        if not self.mem_cache then self.mem_cache = {} end
+        self.mem_cache[key] = decoded
+        return decoded
+    end
+    return nil
+end
+
+function GeminiIllustrator:setCachedScenes(key, scenes)
+    if not self.mem_cache then self.mem_cache = {} end
+    self.mem_cache[key] = scenes
+
+    local path = self:getCacheFilePath(key)
+    if json and json.encode then
+        local ok, enc = pcall(json.encode, scenes)
+        if ok and enc then
+            local f = io.open(path, "w")
+            if f then
+                f:write(enc)
+                f:close()
+            end
+        end
+    end
+end
+
+-- Workflow 1: Scan Chapter or Range, Present Scene Choices, and Generate (with Smart Persistent Caching)
+function GeminiIllustrator:scanAndSuggestScenes(mode, custom_start, custom_end, force_refresh)
     self:ensureInitialized()
     local self_ref = self
 
@@ -210,15 +271,40 @@ function GeminiIllustrator:scanAndSuggestScenes(mode, custom_start, custom_end)
     local book_info = self.scanner:getBookInfo(self.ui)
     local text_to_analyze = ""
     local title_label = ""
+    local cache_key_segment = ""
 
     if mode == "chapter" then
         local chapter_text, s_p, e_p, ch_title = self.scanner:getCurrentChapterText(self.ui)
         text_to_analyze = chapter_text
         title_label = string.format("%s (pp. %d-%d)", ch_title, s_p, e_p)
+        cache_key_segment = string.format("ch_%s_%d_%d", ch_title, s_p, e_p)
     else
         local range_text, s_p, e_p = self.scanner:getPageRangeText(self.ui, custom_start, custom_end)
         text_to_analyze = range_text
         title_label = string.format(_("Pages %d - %d"), s_p, e_p)
+        cache_key_segment = string.format("range_%d_%d", s_p, e_p)
+    end
+
+    local full_cache_key = string.format("%s_%s", book_info.title or "book", cache_key_segment)
+
+    -- 1. Check for Cached Chapter Scenes (Instant 0-second load without consuming API quota)
+    if not force_refresh then
+        local cached_scenes = self:getCachedScenes(full_cache_key)
+        if cached_scenes and #cached_scenes > 0 then
+            self.scene_dialog:showScenePicker(
+                cached_scenes,
+                title_label,
+                function(chosen_scene)
+                    self_ref:generateAndDisplayScene(chosen_scene, book_info)
+                end,
+                function()
+                    -- Re-scan requested by user
+                    self_ref:scanAndSuggestScenes(mode, custom_start, custom_end, true)
+                end,
+                true -- is_cached
+            )
+            return
+        end
     end
 
     if #text_to_analyze < 30 then
@@ -247,10 +333,21 @@ function GeminiIllustrator:scanAndSuggestScenes(mode, custom_start, custom_end)
             return
         end
 
-        -- Show the interactive scene picker
-        self_ref.scene_dialog:showScenePicker(scenes, title_label, function(chosen_scene)
-            self_ref:generateAndDisplayScene(chosen_scene, book_info)
-        end)
+        -- Save to persistent cache
+        self_ref:setCachedScenes(full_cache_key, scenes)
+
+        -- Show the interactive scene picker with Re-scan option
+        self_ref.scene_dialog:showScenePicker(
+            scenes,
+            title_label,
+            function(chosen_scene)
+                self_ref:generateAndDisplayScene(chosen_scene, book_info)
+            end,
+            function()
+                self_ref:scanAndSuggestScenes(mode, custom_start, custom_end, true)
+            end,
+            false -- is_cached
+        )
     end)
 end
 

@@ -7,11 +7,11 @@ local PromptEngine = {}
 PromptEngine.__index = PromptEngine
 
 local STYLE_MODIFIERS = {
-    engraving = "Victorian book illustration style, detailed copperplate engraving and ink etching, intricate cross-hatching, in the style of Gustave Doré and Albrecht Dürer, sharp black ink lines on off-white paper, high contrast, masterpiece.",
-    comic_noir = "Graphic novel illustration style, dramatic comic noir ink drawing, heavy chiaroscuro lighting, bold ink shadows, crisp silhouettes, Frank Miller and Mike Mignola graphic novel aesthetic, monochromatic, high contrast.",
-    woodcut = "Vintage woodblock and woodcut print style, bold folkloric lines, traditional relief printmaking aesthetic, stark monochromatic contrast, historic medieval and early modern woodcut art.",
-    charcoal_sketch = "Detailed academic charcoal and graphite drawing, fine tonal gradients, textured paper grain, atmospheric sfumato shading, realistic classical book illustration, monochrome.",
-    cinematic_bw = "Cinematic 35mm black and white photography still, dramatic film lighting, rich grayscale depth, Hasselblad monochrome portraiture, sharp focus, deep shadows and crisp highlights.",
+    engraving = "Victorian book illustration style, detailed copperplate engraving and ink etching, intricate cross-hatching, in the style of Gustave Doré and Albrecht Dürer, sharp black ink lines on off-white paper, high contrast, vertical composition, masterpiece.",
+    comic_noir = "Graphic novel illustration style, dramatic comic noir ink drawing, heavy chiaroscuro lighting, bold ink shadows, crisp silhouettes, Frank Miller and Mike Mignola graphic novel aesthetic, monochromatic, high contrast, vertical composition.",
+    woodcut = "Vintage woodblock and woodcut print style, bold folkloric lines, traditional relief printmaking aesthetic, stark monochromatic contrast, historic medieval and early modern woodcut art, vertical composition.",
+    charcoal_sketch = "Detailed academic charcoal and graphite drawing, fine tonal gradients, textured paper grain, atmospheric sfumato shading, realistic classical book illustration, monochrome, vertical portrait composition.",
+    cinematic_bw = "Cinematic 35mm black and white portrait photography still, dramatic film lighting, rich grayscale depth, Hasselblad monochrome portraiture, sharp focus, deep shadows and crisp highlights, vertical orientation.",
     auto_genre = "", -- Dynamically determined by Gemini based on book context
 }
 
@@ -38,6 +38,7 @@ Your mission:
 2. Identify 3 to 4 distinct, visually stunning, dramatic, or iconic moments from the text.
 3. For each moment, craft a rich, highly specific visual prompt for an image generation model.
 4. The visual prompt must be tailor-made for high-contrast, black-and-white E-Ink screen viewing:
+   - MANDATORY: VERTICAL PORTRAIT ORIENTATION ONLY (3:4 vertical aspect ratio, vertical composition, taller than wide, perfectly formatted for a vertical e-reader book screen). Never generate wide/horizontal/landscape scenes.
    - Strong focal point and clear character/environment silhouettes.
    - Dynamic lighting (chiaroscuro, moonlight, neon reflections in grayscale, dramatic backlighting).
    - %s
@@ -49,7 +50,7 @@ Output STRICTLY a JSON array of objects with no surrounding markdown formatting 
     "title": "Short catchy scene title",
     "summary": "1-2 sentence vivid summary of the visual action",
     "quote": "Direct quote from text capturing this instant",
-    "visual_prompt": "Masterpiece black and white book illustration of [detailed visual description of characters, actions, setting, architecture, camera angle, lighting, and style]"
+    "visual_prompt": "Vertical portrait 3:4 aspect ratio, masterpiece black and white book illustration of [detailed vertical visual description of characters, actions, setting, architecture, camera angle, lighting, and style]"
   }
 ]
 ]], title, author, (#description > 0 and ("Book context: " .. description) or ""), style_note)
@@ -65,11 +66,11 @@ function PromptEngine:buildSingleScenePrompt(selected_text, book_info)
     local style_guide = STYLE_MODIFIERS[style_pref]
 
     if not style_guide or #style_guide == 0 then
-        style_guide = "High contrast black and white book illustration, atmospheric lighting, detailed ink line art, crisp shadows and highlights, masterpiece for e-ink display."
+        style_guide = "High contrast black and white book illustration, atmospheric lighting, detailed ink line art, crisp shadows and highlights, masterpiece for vertical e-ink display."
     end
 
     local prompt = string.format(
-        "Scene from '%s' by %s: \"%s\". Visual composition: %s",
+        "Vertical portrait orientation, 3:4 aspect ratio. Scene from '%s' by %s: \"%s\". Visual composition: %s",
         title, author, selected_text:sub(1, 400), style_guide
     )
     return prompt

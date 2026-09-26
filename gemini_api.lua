@@ -493,11 +493,12 @@ function API:generateImage(visual_prompt, output_filepath)
     local url = ""
     local payload = {}
 
+    local portrait_prompt = "Vertical portrait orientation (3:4 aspect ratio, vertical composition, taller than wide). " .. visual_prompt
     if model:match("^imagen") then
         url = string.format("https://generativelanguage.googleapis.com/v1beta/models/%s:predict?key=%s", model, gemini_key)
         payload = {
             instances = {
-                { prompt = visual_prompt }
+                { prompt = portrait_prompt }
             },
             parameters = {
                 sampleCount = 1,
@@ -512,9 +513,12 @@ function API:generateImage(visual_prompt, output_filepath)
                 {
                     role = "user",
                     parts = {
-                        { text = visual_prompt }
+                        { text = portrait_prompt }
                     }
                 }
+            },
+            generationConfig = {
+                response_mime_type = "image/png"
             }
         }
     end
