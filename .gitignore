@@ -1,0 +1,4 @@
+*.tmp
+*.b64
+*.json
+test.tmp

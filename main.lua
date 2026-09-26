@@ -1,0 +1,457 @@
+--[[--
+Gemini AI Book Illustrator Plugin for KOReader.
+Generates intelligent, genre-aware scene illustrations using Google Gemini 2026 models with chapter scanning and E-Ink styling.
+--]]--
+
+local _ = require("gettext")
+local Dispatcher = require("dispatcher")
+local InfoMessage = require("ui/widget/infomessage")
+local InputDialog = require("ui/widget/inputdialog")
+local UIManager = require("ui/uimanager")
+local WidgetContainer = require("ui/widget/container/widgetcontainer")
+
+-- Safely load internal modules
+local plugin_dir = debug.getinfo(1, "S").source:match("@?(.*[/\\])") or ""
+
+local Settings, API, Scanner, PromptEngine, SceneDialog
+local ok, mod
+
+ok, mod = pcall(dofile, plugin_dir .. "settings.lua")
+if ok then Settings = mod end
+
+ok, mod = pcall(dofile, plugin_dir .. "gemini_api.lua")
+if ok then API = mod end
+
+ok, mod = pcall(dofile, plugin_dir .. "chapter_scanner.lua")
+if ok then Scanner = mod end
+
+ok, mod = pcall(dofile, plugin_dir .. "prompt_engine.lua")
+if ok then PromptEngine = mod end
+
+ok, mod = pcall(dofile, plugin_dir .. "scene_dialog.lua")
+if ok then SceneDialog = mod end
+
+local GeminiIllustrator = WidgetContainer:extend{
+    name = "gemini_illustrator",
+    is_doc_only = false,
+}
+
+function GeminiIllustrator:onDispatcherRegisterActions()
+    Dispatcher:registerAction("gemini_illustrator", {
+        category = "none",
+        event = "ShowGeminiIllustrator",
+        title = _("Gemini AI Illustrator"),
+        general = true,
+    })
+end
+
+function GeminiIllustrator:onShowGeminiIllustrator()
+    local Menu = require("ui/widget/menu")
+    local menu = Menu:new{
+        title = _("✨ Gemini AI Book Illustrator"),
+        item_table = self:getSubMenuItems(),
+        is_borderless = true,
+    }
+    UIManager:show(menu)
+end
+
+function GeminiIllustrator:init()
+    if self.ui and self.ui.menu then
+        self.ui.menu:registerToMainMenu(self)
+    end
+
+    if Settings then
+        self.settings = Settings:new()
+    end
+    if API and self.settings then
+        self.api = API:new(self.settings)
+    end
+    if Scanner then
+        self.scanner = Scanner:new()
+    end
+    if PromptEngine and self.settings then
+        self.prompt_engine = PromptEngine:new(self.settings)
+    end
+    if SceneDialog and self.settings then
+        self.scene_dialog = SceneDialog:new(self.settings)
+    end
+
+    self:onDispatcherRegisterActions()
+end
+
+-- Inject into KOReader's Top Menu
+function GeminiIllustrator:addToMainMenu(menu_items)
+    menu_items.gemini_illustrator = {
+        text = _("✨ AI Book Illustrator"),
+        sorting_hint = "more_tools",
+        sub_item_table = self:getSubMenuItems(),
+    }
+end
+
+-- Inject into Highlight Context Menu (when user highlights text in a book)
+function GeminiIllustrator:onSelectionMenu(menu_items, selected_text)
+    if not selected_text or #selected_text == 0 then return end
+    local self_ref = self
+
+    table.insert(menu_items, {
+        text = _("✨ Gemini Illustrate"),
+        callback = function()
+            self_ref:illustrateSelectedText(selected_text)
+        end,
+    })
+end
+
+-- Submenu structure
+function GeminiIllustrator:getSubMenuItems()
+    local self_ref = self
+
+    return {
+        {
+            text = _("✨ Scan Current Chapter (AI Scene Suggestions)"),
+            help_text = _("Gemini analyzes the full chapter and proposes 3-4 visual scenes."),
+            callback = function()
+                self_ref:scanAndSuggestScenes("chapter")
+            end,
+        },
+        {
+            text = _("📑 Scan Custom Page Range..."),
+            help_text = _("Pick a specific page range (e.g. pages 15-28)."),
+            callback = function()
+                local cur_p = (self_ref.ui and self_ref.ui.view and self_ref.ui.view.state and self_ref.ui.view.state.page) or 1
+                self_ref.scene_dialog:showPageRangeDialog(cur_p, function(start_p, end_p)
+                    self_ref:scanAndSuggestScenes("range", start_p, end_p)
+                end)
+            end,
+        },
+        {
+            text = _("📄 Illustrate Current Page"),
+            help_text = _("Directly illustrate the scene on the visible page."),
+            callback = function()
+                self_ref:illustrateCurrentPage()
+            end,
+        },
+        {
+            text = _("🎨 Art Style & Resolution"),
+            sub_item_table = self:buildStyleMenu(),
+        },
+        {
+            text = _("⚙️ Connection & API Settings"),
+            sub_item_table = self:buildSettingsMenu(),
+        },
+    }
+end
+
+-- Workflow 1: Scan Chapter or Range, Present Scene Choices, and Generate
+function GeminiIllustrator:scanAndSuggestScenes(mode, custom_start, custom_end)
+    local self_ref = self
+
+    if not self.api:getKey() or #self.api:getKey() == 0 then
+        UIManager:show(InfoMessage:new{
+            text = _("Please enter your Gemini API key in Settings first."),
+            timeout = 3,
+        })
+        return
+    end
+
+    local book_info = self.scanner:getBookInfo(self.ui)
+    local text_to_analyze = ""
+    local title_label = ""
+
+    if mode == "chapter" then
+        local chapter_text, s_p, e_p, ch_title = self.scanner:getCurrentChapterText(self.ui)
+        text_to_analyze = chapter_text
+        title_label = string.format("%s (pp. %d-%d)", ch_title, s_p, e_p)
+    else
+        local range_text, s_p, e_p = self.scanner:getPageRangeText(self.ui, custom_start, custom_end)
+        text_to_analyze = range_text
+        title_label = string.format(_("Pages %d - %d"), s_p, e_p)
+    end
+
+    if #text_to_analyze < 30 then
+        UIManager:show(InfoMessage:new{
+            text = _("Could not extract text from document. Ensure a book is currently open."),
+            timeout = 3,
+        })
+        return
+    end
+
+    local info = InfoMessage:new{
+        text = string.format(_("🧠 Gemini (%s) is reading %s and identifying dramatic scenes..."), self.api:getTextModel(), title_label),
+    }
+    UIManager:show(info)
+
+    UIManager:scheduleIn(0.1, function()
+        local sys_prompt = self_ref.prompt_engine:buildAnalysisSystemInstruction(book_info)
+        local scenes, err = self_ref.api:analyzeChapter(text_to_analyze, sys_prompt)
+        UIManager:close(info)
+
+        if not scenes or #scenes == 0 then
+            UIManager:show(InfoMessage:new{
+                text = string.format(_("Failed to analyze scenes:\n%s"), tostring(err)),
+                timeout = 4,
+            })
+            return
+        end
+
+        -- Show the interactive scene picker
+        self_ref.scene_dialog:showScenePicker(scenes, title_label, function(chosen_scene)
+            self_ref:generateAndDisplayScene(chosen_scene, book_info)
+        end)
+    end)
+end
+
+-- Workflow 2: Illustrate Current Page
+function GeminiIllustrator:illustrateCurrentPage()
+    local page_text = self.scanner:getCurrentPageText(self.ui)
+    if #page_text < 20 then
+        UIManager:show(InfoMessage:new{
+            text = _("Could not extract text from the current page."),
+            timeout = 2.5,
+        })
+        return
+    end
+
+    local book_info = self.scanner:getBookInfo(self.ui)
+    local cur_p = (self.ui and self.ui.view and self.ui.view.state and self.ui.view.state.page) or 1
+    local visual_prompt = self.prompt_engine:buildSingleScenePrompt(page_text, book_info)
+
+    local scene_obj = {
+        title = string.format(_("Page %d Scene"), cur_p),
+        summary = page_text:sub(1, 140) .. "...",
+        visual_prompt = visual_prompt,
+    }
+
+    self:generateAndDisplayScene(scene_obj, book_info)
+end
+
+-- Workflow 3: Illustrate Highlighted Text
+function GeminiIllustrator:illustrateSelectedText(selected_text)
+    local book_info = self.scanner:getBookInfo(self.ui)
+    local visual_prompt = self.prompt_engine:buildSingleScenePrompt(selected_text, book_info)
+
+    local scene_obj = {
+        title = _("Highlighted Scene"),
+        summary = selected_text:sub(1, 140) .. "...",
+        visual_prompt = visual_prompt,
+    }
+
+    self:generateAndDisplayScene(scene_obj, book_info)
+end
+
+-- Core: Calls Image API and Opens Fullscreen Viewer
+function GeminiIllustrator:generateAndDisplayScene(scene_obj, book_info)
+    local self_ref = self
+    local visual_prompt = scene_obj.visual_prompt or scene_obj.summary or "Book illustration"
+    local save_dir = self.settings:get("save_dir") or "/mnt/us/koreader/bookart"
+    local timestamp = os.time()
+    local out_path = string.format("%s/scene_%d.png", save_dir, timestamp)
+
+    local img_model = self.api:getImageModel()
+    local info = InfoMessage:new{
+        text = string.format(_("🎨 Generating illustration with %s...\n(%s)"), img_model, scene_obj.title or ""),
+    }
+    UIManager:show(info)
+
+    UIManager:scheduleIn(0.1, function()
+        local generated_file, err = self_ref.api:generateImage(visual_prompt, out_path)
+        UIManager:close(info)
+
+        if generated_file then
+            self_ref.scene_dialog:showGeneratedArtwork(generated_file, scene_obj, book_info)
+        else
+            UIManager:show(InfoMessage:new{
+                text = string.format(_("Failed to generate image:\n%s"), tostring(err)),
+                timeout = 4,
+            })
+        end
+    end)
+end
+
+-- Style and Resolution Submenu
+function GeminiIllustrator:buildStyleMenu()
+    local self_ref = self
+    local items = {}
+
+    -- 1. Art Style Picker
+    local style_items = {}
+    for _, st in ipairs(Settings.ART_STYLES) do
+        table.insert(style_items, {
+            text = st.name,
+            help_text = st.desc,
+            checked_func = function()
+                return (self_ref.settings:get("art_style") == st.id)
+            end,
+            callback = function(touchmenu_instance)
+                self_ref.settings:set("art_style", st.id)
+                if touchmenu_instance and touchmenu_instance.updateItems then
+                    touchmenu_instance:updateItems()
+                end
+            end,
+        })
+    end
+
+    table.insert(items, {
+        text_func = function()
+            local cur = self_ref.settings:get("art_style") or "auto_genre"
+            for _, st in ipairs(Settings.ART_STYLES) do
+                if st.id == cur then return string.format(_("Art Style: %s"), st.name) end
+            end
+            return _("Art Style")
+        end,
+        sub_item_table = style_items,
+    })
+
+    -- 2. Resolution Picker
+    local res_items = {}
+    for _, res in ipairs(Settings.RESOLUTIONS) do
+        table.insert(res_items, {
+            text = res.name,
+            help_text = res.desc,
+            checked_func = function()
+                return (self_ref.settings:get("resolution") == res.id)
+            end,
+            callback = function(touchmenu_instance)
+                self_ref.settings:set("resolution", res.id)
+                if touchmenu_instance and touchmenu_instance.updateItems then
+                    touchmenu_instance:updateItems()
+                end
+            end,
+        })
+    end
+
+    table.insert(items, {
+        text_func = function()
+            local cur = self_ref.settings:get("resolution") or "768x1024"
+            for _, res in ipairs(Settings.RESOLUTIONS) do
+                if res.id == cur then return string.format(_("Resolution: %s"), res.name) end
+            end
+            return _("Resolution")
+        end,
+        sub_item_table = res_items,
+    })
+
+    return items
+end
+
+-- Settings Submenu (API key, Models, Import)
+function GeminiIllustrator:buildSettingsMenu()
+    local self_ref = self
+
+    -- Text Model Items
+    local text_model_items = {}
+    for _, m in ipairs(Settings.TEXT_MODELS) do
+        table.insert(text_model_items, {
+            text = m.name,
+            help_text = m.desc,
+            checked_func = function()
+                return (self_ref.settings:get("text_model") == m.id)
+            end,
+            callback = function(touchmenu_instance)
+                self_ref.settings:set("text_model", m.id)
+                if touchmenu_instance and touchmenu_instance.updateItems then
+                    touchmenu_instance:updateItems()
+                end
+            end,
+        })
+    end
+
+    -- Image Model Items
+    local img_model_items = {}
+    for _, m in ipairs(Settings.IMAGE_MODELS) do
+        table.insert(img_model_items, {
+            text = m.name,
+            help_text = m.desc,
+            checked_func = function()
+                return (self_ref.settings:get("image_model") == m.id)
+            end,
+            callback = function(touchmenu_instance)
+                self_ref.settings:set("image_model", m.id)
+                if touchmenu_instance and touchmenu_instance.updateItems then
+                    touchmenu_instance:updateItems()
+                end
+            end,
+        })
+    end
+
+    return {
+        {
+            text = _("Test Connection & Validate API Key"),
+            keep_menu_open = true,
+            callback = function()
+                local info = InfoMessage:new{ text = _("Connecting to Google Gemini...") }
+                UIManager:show(info)
+                local ok_conn, msg = self_ref.api:ping()
+                UIManager:close(info)
+                UIManager:show(InfoMessage:new{ text = msg, timeout = 3.5 })
+            end,
+        },
+        {
+            text_func = function()
+                local key = self_ref.settings:get("api_key") or ""
+                local status = (#key > 0) and string.format(_("Configured (%d chars)"), #key) or _("Not Set")
+                return string.format(_("Gemini API Key: %s"), status)
+            end,
+            keep_menu_open = true,
+            callback = function(touchmenu_instance)
+                local dialog
+                dialog = InputDialog:new{
+                    title = _("Google AI Studio API Key"),
+                    description = _("Paste your Gemini API key (from aistudio.google.com):"),
+                    input = self_ref.settings:get("api_key") or "",
+                    buttons = {
+                        {
+                            {
+                                text = _("Cancel"),
+                                id = "close",
+                                callback = function() UIManager:close(dialog) end,
+                            },
+                            {
+                                text = _("Save"),
+                                is_enter_default = true,
+                                callback = function()
+                                    local new_key = dialog:getInputText()
+                                    UIManager:close(dialog)
+                                    self_ref.settings:set("api_key", new_key)
+                                    UIManager:show(InfoMessage:new{ text = _("API Key saved."), timeout = 2 })
+                                    if touchmenu_instance and touchmenu_instance.updateItems then
+                                        touchmenu_instance:updateItems()
+                                    end
+                                end,
+                            },
+                        },
+                    },
+                }
+                UIManager:show(dialog)
+                dialog:onShowKeyboard()
+            end,
+        },
+        {
+            text = _("Import Key from /mnt/us/gemini_token.txt"),
+            help_text = _("Place key in gemini_token.txt on Kindle root to avoid typing on e-ink."),
+            keep_menu_open = true,
+            callback = function(touchmenu_instance)
+                local ok_import, msg = self_ref.settings:importTokenFromFile("/mnt/us/gemini_token.txt")
+                UIManager:show(InfoMessage:new{ text = msg, timeout = 3 })
+                if ok_import and touchmenu_instance and touchmenu_instance.updateItems then
+                    touchmenu_instance:updateItems()
+                end
+            end,
+        },
+        {
+            text_func = function()
+                local cur = self_ref.settings:get("text_model") or "gemini-3.1-flash-preview"
+                return string.format(_("Text / Analysis Model: %s"), cur)
+            end,
+            sub_item_table = text_model_items,
+        },
+        {
+            text_func = function()
+                local cur = self_ref.settings:get("image_model") or "gemini-3.1-flash-image"
+                return string.format(_("Image Model: %s"), cur)
+            end,
+            sub_item_table = img_model_items,
+        },
+    }
+end
+
+return GeminiIllustrator
