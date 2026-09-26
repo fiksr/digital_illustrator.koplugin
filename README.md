@@ -30,10 +30,18 @@
 - 🚀 **Kindle Performance & Fast Mode**:
   - Configurable resolutions: `768x1024 (Fast - Recommended)`, `896x1152 (Balanced)`, `1024x1365 (HD)`, `1272x1696 (Native 300 PPI)`.
   - Instant background base64 decoding via native Linux command.
-- 🖼️ **One-Click Actions**:
-  - Fullscreen `ImageViewer` with zoom and pan.
-  - **Set as Screensaver**: Saves image directly to Kindle screensavers directory.
-  - **Set as Book Cover**: Sets image as custom cover for current book.
+- 📱 **Instant Phone QR Code Pairing (Local Wi-Fi Server)**:
+  - Tap **📱 Pair with Phone (Scan QR Code)** in settings.
+  - Scan the QR code with your mobile camera $\rightarrow$ opens a sleek dark-mode web setup page.
+  - Paste all your API keys at once and tap **"Send & Save to Kindle"**.
+  - Transferred 100% locally and securely over your home Wi-Fi (no external servers needed).
+- 📁 **Visual File Browser (`PathChooser`)**:
+  - Browse storage on Kindle to select any `.txt` or `.key` file with automatic provider detection (Gemini `AIza...`, OpenAI `sk-...`, Fal.ai).
+- 🖼️ **Saved Illustrations Gallery & Export**:
+  - **Saved Illustrations Gallery**: Browse and open all previously generated illustrations with full metadata.
+  - **Set as Screensaver**: Direct export to `/mnt/us/screensavers/`.
+  - **Set as Book Cover**: Custom cover integration into KOReader book metadata.
+  - **Export to Pictures**: Save directly to `/mnt/us/pictures/`.
 
 ---
 
@@ -47,16 +55,16 @@
 
 ---
 
-## 🔑 API Keys Setup
+## 🔑 3 Easy Ways to Set Up API Keys
 
-1. **Google Gemini Key (Required for Text Brain)**:
-   - Get a free key from [Google AI Studio](https://aistudio.google.com/).
-   - Place in `/mnt/us/gemini_token.txt` on your Kindle root drive.
-2. **Optional Image Provider Keys**:
-   - **Pollinations**: No key required! ($0.00 Free).
-   - **Fal.ai**: Place key in `/mnt/us/fal_token.txt`.
-   - **OpenAI**: Place key in `/mnt/us/openai_token.txt`.
-3. In KOReader $\rightarrow$ **AI Book Illustrator** $\rightarrow$ **Settings** $\rightarrow$ **Import Keys from Kindle Files**.
+1. **📱 Method 1: Phone QR Code (Recommended - Fastest)**:
+   - Open plugin menu $\rightarrow$ **🔑 API Keys & Connection Test** $\rightarrow$ **📱 Pair with Phone (Scan QR Code)**.
+   - Scan the QR code with your phone and paste your keys.
+2. **📁 Method 2: Visual File Browser**:
+   - Tap **📁 Browse Storage for Key File (*.txt)...** and pick any text file.
+3. **📄 Method 3: USB Text File Import**:
+   - Place `gemini_token.txt`, `fal_token.txt`, or `openai_token.txt` on your Kindle root drive (`/mnt/us/`).
+   - Tap **⚡ Quick Import from /mnt/us/*.txt**.
 
 ---
 
