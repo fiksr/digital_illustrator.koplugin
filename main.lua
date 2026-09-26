@@ -11,6 +11,8 @@ local InputDialog = require("ui/widget/inputdialog")
 local UIManager = require("ui/uimanager")
 local WidgetContainer = require("ui/widget/container/widgetcontainer")
 
+local logger = require("logger")
+
 -- Safely load internal modules
 local plugin_dir = debug.getinfo(1, "S").source:match("@?(.*[/\\])") or ""
 
@@ -18,22 +20,22 @@ local Settings, API, Scanner, PromptEngine, SceneDialog, QRServer
 local ok, mod
 
 ok, mod = pcall(dofile, plugin_dir .. "settings.lua")
-if ok then Settings = mod end
+if ok then Settings = mod else logger.err("GeminiIllustrator: Failed to load settings.lua:", mod) end
 
 ok, mod = pcall(dofile, plugin_dir .. "gemini_api.lua")
-if ok then API = mod end
+if ok then API = mod else logger.err("GeminiIllustrator: Failed to load gemini_api.lua:", mod) end
 
 ok, mod = pcall(dofile, plugin_dir .. "chapter_scanner.lua")
-if ok then Scanner = mod end
+if ok then Scanner = mod else logger.err("GeminiIllustrator: Failed to load chapter_scanner.lua:", mod) end
 
 ok, mod = pcall(dofile, plugin_dir .. "prompt_engine.lua")
-if ok then PromptEngine = mod end
+if ok then PromptEngine = mod else logger.err("GeminiIllustrator: Failed to load prompt_engine.lua:", mod) end
 
 ok, mod = pcall(dofile, plugin_dir .. "scene_dialog.lua")
-if ok then SceneDialog = mod end
+if ok then SceneDialog = mod else logger.err("GeminiIllustrator: Failed to load scene_dialog.lua:", mod) end
 
 ok, mod = pcall(dofile, plugin_dir .. "qr_server.lua")
-if ok then QRServer = mod end
+if ok then QRServer = mod else logger.err("GeminiIllustrator: Failed to load qr_server.lua:", mod) end
 
 local GeminiIllustrator = WidgetContainer:extend{
     name = "gemini_illustrator",
@@ -60,23 +62,47 @@ function GeminiIllustrator:onShowGeminiIllustrator()
 end
 
 function GeminiIllustrator:ensureInitialized()
-    if not self.settings and Settings then
-        self.settings = Settings:new()
+    if not self.settings then
+        if not Settings then
+            local ok_s, s_mod = pcall(dofile, plugin_dir .. "settings.lua")
+            if ok_s then Settings = s_mod end
+        end
+        if Settings then self.settings = Settings:new() end
     end
-    if not self.api and API and self.settings then
-        self.api = API:new(self.settings)
+    if not self.api and self.settings then
+        if not API then
+            local ok_a, a_mod = pcall(dofile, plugin_dir .. "gemini_api.lua")
+            if ok_a then API = a_mod end
+        end
+        if API then self.api = API:new(self.settings) end
     end
-    if not self.scanner and Scanner then
-        self.scanner = Scanner:new()
+    if not self.scanner then
+        if not Scanner then
+            local ok_sc, sc_mod = pcall(dofile, plugin_dir .. "chapter_scanner.lua")
+            if ok_sc then Scanner = sc_mod end
+        end
+        if Scanner then self.scanner = Scanner:new() end
     end
-    if not self.prompt_engine and PromptEngine and self.settings then
-        self.prompt_engine = PromptEngine:new(self.settings)
+    if not self.prompt_engine and self.settings then
+        if not PromptEngine then
+            local ok_pe, pe_mod = pcall(dofile, plugin_dir .. "prompt_engine.lua")
+            if ok_pe then PromptEngine = pe_mod end
+        end
+        if PromptEngine then self.prompt_engine = PromptEngine:new(self.settings) end
     end
-    if not self.scene_dialog and SceneDialog and self.settings then
-        self.scene_dialog = SceneDialog:new(self.settings)
+    if not self.scene_dialog and self.settings then
+        if not SceneDialog then
+            local ok_sd, sd_mod = pcall(dofile, plugin_dir .. "scene_dialog.lua")
+            if ok_sd then SceneDialog = sd_mod end
+        end
+        if SceneDialog then self.scene_dialog = SceneDialog:new(self.settings) end
     end
-    if not self.qr_server and QRServer and self.settings then
-        self.qr_server = QRServer:new(self.settings)
+    if not self.qr_server and self.settings then
+        if not QRServer then
+            local ok_qr, qr_mod = pcall(dofile, plugin_dir .. "qr_server.lua")
+            if ok_qr then QRServer = qr_mod end
+        end
+        if QRServer then self.qr_server = QRServer:new(self.settings) end
     end
 end
 

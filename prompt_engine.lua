@@ -117,6 +117,9 @@ Output STRICTLY a JSON array of objects with no surrounding markdown formatting 
 ]
 ]], title, author, (#description > 0 and ("Book context: " .. description) or ""), web_note, style_note)
 
+    return prompt
+end
+
 -- Builds prompt for Extracting Characters directly from Internet Search Grounding
 function PromptEngine:buildInternetCharacterAnalysisInstruction(book_info)
     local title = (book_info and book_info.title) or "Unknown Book"
