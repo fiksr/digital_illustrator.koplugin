@@ -51,18 +51,24 @@ Settings.IMAGE_MODELS = {
         desc = "Maximum photorealism & detail, ~40 images for $1 (requires Fal key)"
     },
 
-    -- 3. Google Imagen Models
+    -- 3. Google Nano Banana Image Models
     {
-        id = "imagen-3.0-generate-002",
+        id = "gemini-3.1-flash-lite-image",
         provider = "google",
-        name = "🖼️ Google Imagen 3.0 Standard",
-        desc = "Google Imagen 3.0 Standard photorealistic generation"
+        name = "🍌 Nano Banana 2 Lite ($0.07 / image)",
+        desc = "Google Imagen 3 Fast multimodal for Kindle e-ink"
     },
     {
-        id = "imagen-3.0-fast-generate-001",
+        id = "gemini-3.1-flash-image",
         provider = "google",
-        name = "⚡ Google Imagen 3.0 Fast",
-        desc = "Fast Imagen 3 generation for e-ink portraits"
+        name = "🍌 Nano Banana 2 ($0.10 / image)",
+        desc = "Google Imagen 3 Standard multimodal portrait generation"
+    },
+    {
+        id = "gemini-3-pro-image",
+        provider = "google",
+        name = "🍌 Nano Banana Pro (~$0.13 / image)",
+        desc = "Google Imagen 3 Maximum artistic detail concept art"
     },
 
     -- 4. OpenAI

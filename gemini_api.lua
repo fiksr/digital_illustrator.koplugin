@@ -695,9 +695,11 @@ function API:generateImage(visual_prompt, output_filepath)
     local payload = {}
 
     local portrait_prompt = "Vertical portrait orientation (3:4 aspect ratio, vertical composition, taller than wide). " .. visual_prompt
-    local google_img_model = model
-    if not google_img_model:match("^imagen") then
-        google_img_model = "imagen-3.0-generate-002"
+    local google_img_model = "imagen-3.0-generate-002"
+    if model == "gemini-3.1-flash-lite-image" or model == "imagen-3.0-fast-generate-001" then
+        google_img_model = "imagen-3.0-fast-generate-001"
+    elseif model:match("^imagen") then
+        google_img_model = model
     end
 
     url = string.format("https://generativelanguage.googleapis.com/v1beta/models/%s:predict?key=%s", google_img_model, gemini_key)
@@ -718,8 +720,8 @@ function API:generateImage(visual_prompt, output_filepath)
     if f then f:write(body_json); f:close() end
 
     local curl_cmd = string.format(
-        'curl -s -k -m %d -X POST -H "Content-Type: application/json" -d @%s "%s" -w "\\nHTTP_CODE:%%{http_code}" 2>/dev/null',
-        timeout, tmp_payload, url
+        'curl -s -k -m %d -X POST -H "x-goog-api-key: %s" -H "Content-Type: application/json" -d @%s "%s" -w "\\nHTTP_CODE:%%{http_code}" 2>/dev/null',
+        timeout, gemini_key, tmp_payload, url
     )
 
     local handle = io.popen(curl_cmd)
