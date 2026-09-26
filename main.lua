@@ -112,7 +112,7 @@ function GeminiIllustrator:onReaderHighlight(menu_items, selected_text)
     self:onSelectionMenu(menu_items, selected_text)
 end
 
--- Submenu structure
+-- Submenu structure (Organized strictly in flat, non-nested panels to prevent TouchMenu crashes)
 function GeminiIllustrator:getSubMenuItems()
     self:ensureInitialized()
     local self_ref = self
@@ -143,6 +143,20 @@ function GeminiIllustrator:getSubMenuItems()
             end,
         },
         {
+            text = _("🖼️ Choose Image Model & Provider"),
+            help_text = _("Pollinations (Free $0), Fal.ai ($0.003), Google ($0.07), or OpenAI"),
+            sub_item_table_func = function()
+                return self_ref:buildImageModelSubmenu()
+            end,
+        },
+        {
+            text = _("🧠 Choose Text Analysis Model"),
+            help_text = _("Gemini 3.1 Flash Lite (Free), 3.8 Flash, or Pro"),
+            sub_item_table_func = function()
+                return self_ref:buildTextModelSubmenu()
+            end,
+        },
+        {
             text = _("🎨 Choose Art Style"),
             help_text = _("Select E-Ink style: Engraving, Noir, Woodcut, etc."),
             sub_item_table_func = function()
@@ -157,9 +171,10 @@ function GeminiIllustrator:getSubMenuItems()
             end,
         },
         {
-            text = _("⚙️ Connection & API Settings"),
+            text = _("🔑 API Keys & Connection Test"),
+            help_text = _("Manage API keys and test connections."),
             sub_item_table_func = function()
-                return self_ref:buildSettingsMenu()
+                return self_ref:buildKeysMenu()
             end,
         },
     }
@@ -295,6 +310,62 @@ function GeminiIllustrator:generateAndDisplayScene(scene_obj, book_info)
     end)
 end
 
+-- Image Model Submenu
+function GeminiIllustrator:buildImageModelSubmenu()
+    self:ensureInitialized()
+    local self_ref = self
+    local items = {}
+    local img_models = (Settings and Settings.IMAGE_MODELS) or {}
+
+    for _, m in ipairs(img_models) do
+        table.insert(items, {
+            text = m.name,
+            help_text = m.desc,
+            checked_func = function()
+                return (self_ref.settings and self_ref.settings:get("image_model") == m.id)
+            end,
+            callback = function(touchmenu_instance)
+                if self_ref.settings then
+                    self_ref.settings:set("image_model", m.id)
+                end
+                if touchmenu_instance and touchmenu_instance.updateItems then
+                    touchmenu_instance:updateItems()
+                end
+            end,
+        })
+    end
+
+    return items
+end
+
+-- Text Model Submenu
+function GeminiIllustrator:buildTextModelSubmenu()
+    self:ensureInitialized()
+    local self_ref = self
+    local items = {}
+    local text_models = (Settings and Settings.TEXT_MODELS) or {}
+
+    for _, m in ipairs(text_models) do
+        table.insert(items, {
+            text = m.name,
+            help_text = m.desc,
+            checked_func = function()
+                return (self_ref.settings and self_ref.settings:get("text_model") == m.id)
+            end,
+            callback = function(touchmenu_instance)
+                if self_ref.settings then
+                    self_ref.settings:set("text_model", m.id)
+                end
+                if touchmenu_instance and touchmenu_instance.updateItems then
+                    touchmenu_instance:updateItems()
+                end
+            end,
+        })
+    end
+
+    return items
+end
+
 -- Art Style Submenu
 function GeminiIllustrator:buildArtStyleSubmenu()
     self:ensureInitialized()
@@ -351,52 +422,10 @@ function GeminiIllustrator:buildResolutionSubmenu()
     return items
 end
 
--- Settings Submenu (API keys, Models, Import)
-function GeminiIllustrator:buildSettingsMenu()
+-- API Keys Submenu
+function GeminiIllustrator:buildKeysMenu()
     self:ensureInitialized()
     local self_ref = self
-
-    -- Text Model Items
-    local text_model_items = {}
-    local text_models = (Settings and Settings.TEXT_MODELS) or {}
-    for _, m in ipairs(text_models) do
-        table.insert(text_model_items, {
-            text = m.name,
-            help_text = m.desc,
-            checked_func = function()
-                return (self_ref.settings and self_ref.settings:get("text_model") == m.id)
-            end,
-            callback = function(touchmenu_instance)
-                if self_ref.settings then
-                    self_ref.settings:set("text_model", m.id)
-                end
-                if touchmenu_instance and touchmenu_instance.updateItems then
-                    touchmenu_instance:updateItems()
-                end
-            end,
-        })
-    end
-
-    -- Image Model Items (All Providers)
-    local img_model_items = {}
-    local img_models = (Settings and Settings.IMAGE_MODELS) or {}
-    for _, m in ipairs(img_models) do
-        table.insert(img_model_items, {
-            text = m.name,
-            help_text = m.desc,
-            checked_func = function()
-                return (self_ref.settings and self_ref.settings:get("image_model") == m.id)
-            end,
-            callback = function(touchmenu_instance)
-                if self_ref.settings then
-                    self_ref.settings:set("image_model", m.id)
-                end
-                if touchmenu_instance and touchmenu_instance.updateItems then
-                    touchmenu_instance:updateItems()
-                end
-            end,
-        })
-    end
 
     return {
         {
@@ -409,25 +438,6 @@ function GeminiIllustrator:buildSettingsMenu()
                 UIManager:close(info)
                 UIManager:show(InfoMessage:new{ text = msg, timeout = 4 })
             end,
-        },
-        {
-            text_func = function()
-                local cur = (self_ref.settings and self_ref.settings:get("image_model")) or "pollinations-flux"
-                for _, m in ipairs(img_models) do
-                    if m.id == cur then return string.format(_("🖼️ Image Model: %s"), m.name) end
-                end
-                return string.format(_("🖼️ Image Model: %s"), cur)
-            end,
-            help_text = _("Choose between Pollinations ($0), Fal.ai ($0.003), Google ($0.07), or OpenAI"),
-            sub_item_table = img_model_items,
-        },
-        {
-            text_func = function()
-                local cur = (self_ref.settings and self_ref.settings:get("text_model")) or "gemini-3.1-flash-lite"
-                return string.format(_("🧠 Text / Analysis Model: %s"), cur)
-            end,
-            help_text = _("Reads & analyzes chapters (Gemini Flash Lite is 100% Free)"),
-            sub_item_table = text_model_items,
         },
         {
             text_func = function()

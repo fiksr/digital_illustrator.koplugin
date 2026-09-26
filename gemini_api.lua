@@ -494,7 +494,7 @@ function API:generateImage(visual_prompt, output_filepath)
     local payload = {}
 
     if model:match("^imagen") then
-        url = string.format("https://generativelanguage.googleapis.com/v1beta/models/%s:predict?key=%s", model, key)
+        url = string.format("https://generativelanguage.googleapis.com/v1beta/models/%s:predict?key=%s", model, gemini_key)
         payload = {
             instances = {
                 { prompt = visual_prompt }
