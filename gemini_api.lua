@@ -306,7 +306,7 @@ function API:extractCharacters(text_to_analyze, system_instruction, enable_web_s
         model, key
     )
 
-    local truncated_text = text_to_analyze:sub(1, 60000)
+    local truncated_text = text_to_analyze:sub(1, 2000000)
 
     local payload = {
         system_instruction = {
@@ -320,7 +320,7 @@ function API:extractCharacters(text_to_analyze, system_instruction, enable_web_s
         },
         generationConfig = {
             response_mime_type = "application/json",
-            temperature = 0.4,
+            temperature = 0.3,
         }
     }
 
@@ -345,7 +345,7 @@ function API:extractCharacters(text_to_analyze, system_instruction, enable_web_s
         f:close()
     end
 
-    local timeout = math.max(self:getTimeout(), 35)
+    local timeout = math.max(self:getTimeout(), 60)
     local curl_cmd = string.format(
         'curl -s -k -m %d -X POST -H "Content-Type: application/json" -d @%s "%s" -w "\\nHTTP_CODE:%%{http_code}" 2>/dev/null',
         timeout, tmp_payload, url

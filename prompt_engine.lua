@@ -87,25 +87,31 @@ function PromptEngine:buildCharacterAnalysisInstruction(book_info, enable_web_se
     local web_note = enable_web_search and "You may use Google Search to verify canonical visual descriptions and appearance details for well-known literary characters, but DO NOT include future plot spoilers." or "Rely exclusively on physical descriptions and characteristics found in the provided text."
 
     local prompt = string.format([[
-You are an expert literary visualizer and character art director.
+You are an expert literary visualizer, character analyst, and portrait art director.
 The user is reading "%s" by %s. %s
 
+Language & Processing Note:
+- The book text may be in Serbian, Croatian, Bosnian, English, or other languages.
+- Thoroughly analyze the text in its original language.
+- Extract character names in their authentic original form / nominative case (e.g. "Petar", "Mihailo", "Vuk", "Geralt", "Jaskier", "Paul Atreides").
+
 Your task:
-1. Identify up to 6 key characters present or mentioned in the provided text excerpt.
-2. For each character, extract or deduce their exact physical appearance, facial features, age, hair, eyes, body build, distinctive marks (scars, beards, glasses), clothing/armor, and demeanor.
+1. Comprehensively scan the entire provided text and identify ALL distinct named characters (protagonists, antagonists, recurring allies, supporting characters, historical figures, and notable secondary characters). Extract up to 15 to 20 key characters if present in the text.
+2. For each character, extract or deduce their exact physical appearance, facial structure, age, hair, eyes, facial hair/scars, body build, clothing/armor of the era, demeanor, and signature items.
 3. %s
-4. Construct a masterpiece vertical portrait visual prompt for each character:
-   - Upper-body bust portrait framing (focused on head, shoulders, face).
-   - Dynamic chiaroscuro lighting, deep blacks and crisp highlights for Kindle 300 PPI E-Ink.
+4. Construct a rich, masterpiece vertical portrait visual prompt for each character:
+   - VERTICAL PORTRAIT COMPOSITION (3:4 aspect ratio, upper-body bust portrait framing).
+   - Focused on facial details, expression, eyes, hair, and period clothing.
+   - Dynamic chiaroscuro lighting, deep black shadows, and crisp highlights for 300 PPI E-Ink display.
    - %s
-   - Strictly avoid future spoilers in the summary.
+   - Strictly avoid future plot spoilers in the summary.
 
 Output STRICTLY a JSON array of objects with no surrounding markdown formatting or backticks. Follow this exact schema:
 [
   {
-    "name": "Character Name",
-    "role": "Short role (e.g. Protagonist, Chief Detective, Village Elder)",
-    "summary": "1-2 sentence non-spoiler summary of who they are and their key traits",
+    "name": "Original Character Name (in Nominative Case)",
+    "role": "Role (e.g. Protagonist / Glavni junak, Vojskovođa, Detektiv, Supruga)",
+    "summary": "1-2 sentence non-spoiler summary of who they are and their role in the story",
     "visual_prompt": "Vertical portrait composition (3:4 aspect ratio, upper-body bust portrait), masterpiece character concept art of [Name], [age] years old, [detailed face, eyes, hair, expression, scars], wearing [authentic period attire/clothing], dramatic side chiaroscuro lighting, deep black shadows, stark monochromatic contrast, crisp linework, masterpiece for e-ink display."
   }
 ]
