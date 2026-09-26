@@ -144,43 +144,57 @@ function GeminiIllustrator:onReaderHighlight(menu_items, selected_text)
     self:onSelectionMenu(menu_items, selected_text)
 end
 
--- Submenu structure (Organized strictly in flat, non-nested panels to prevent TouchMenu crashes)
-function GeminiIllustrator:getSubMenuItems()
+-- Cast of Characters Submenu
+function GeminiIllustrator:buildCastSubmenu()
     self:ensureInitialized()
     local self_ref = self
-
     return {
         {
-            text = _("✨ Scan Current Chapter (AI Scene Suggestions)"),
+            text = _("📚 Read So Far (Spoiler-Free / Up to Current Page)"),
+            help_text = _("Scans all pages read up to now and extracts characters met so far."),
+            callback = function()
+                self_ref:scanAndSuggestCharacters("book")
+            end,
+        },
+        {
+            text = _("🌐 Full Book (Internet Search / Wikipedia Cast)"),
+            help_text = _("Searches Wikipedia and literary databases for canonical cast of the entire book."),
+            callback = function()
+                self_ref:scanAndSuggestCharacters("internet")
+            end,
+        },
+        {
+            text = _("📖 Current Chapter Cast"),
+            help_text = _("Extracts characters appearing in this specific chapter."),
+            callback = function()
+                self_ref:scanAndSuggestCharacters("chapter")
+            end,
+        },
+    }
+end
+
+-- Scenes & Illustrations Submenu
+function GeminiIllustrator:buildScenesSubmenu()
+    self:ensureInitialized()
+    local self_ref = self
+    return {
+        {
+            text = _("🎬 Suggest Chapter Scenes (3-4 AI Concepts)"),
             help_text = _("Gemini analyzes the full chapter and proposes 3-4 visual scenes."),
             callback = function()
                 self_ref:scanAndSuggestScenes("chapter")
             end,
         },
         {
-            text = _("📚 Cast of Characters (Read So Far / Do ove strane)"),
-            help_text = _("Scans all pages read so far and extracts characters met up to now (spoiler-free)."),
+            text = _("📄 Illustrate Current Page"),
+            help_text = _("Directly illustrate the scene on the currently visible page."),
             callback = function()
-                self_ref:scanAndSuggestCharacters("book")
-            end,
-        },
-        {
-            text = _("🌐 Cast of Characters (Search Internet / Cela knjiga)"),
-            help_text = _("Looks up canonical characters from Wikipedia/literary databases for the entire book."),
-            callback = function()
-                self_ref:scanAndSuggestCharacters("internet")
-            end,
-        },
-        {
-            text = _("🎭 Cast of Characters (Current Chapter / Ovo poglavlje)"),
-            help_text = _("Extracts characters in this chapter & generates portrait concept art."),
-            callback = function()
-                self_ref:scanAndSuggestCharacters("chapter")
+                self_ref:illustrateCurrentPage()
             end,
         },
         {
             text = _("📑 Scan Custom Page Range..."),
-            help_text = _("Pick a specific page range (e.g. pages 15-28)."),
+            help_text = _("Select a specific page range (e.g. pages 15-28)."),
             callback = function()
                 local cur_p = (self_ref.ui and self_ref.ui.view and self_ref.ui.view.state and self_ref.ui.view.state.page) or 1
                 self_ref.scene_dialog:showPageRangeDialog(cur_p, function(start_p, end_p)
@@ -188,11 +202,27 @@ function GeminiIllustrator:getSubMenuItems()
                 end)
             end,
         },
+    }
+end
+
+-- Main TouchMenu structure (Categorized and clean, fits on a single screen)
+function GeminiIllustrator:getSubMenuItems()
+    self:ensureInitialized()
+    local self_ref = self
+
+    return {
         {
-            text = _("📄 Illustrate Current Page"),
-            help_text = _("Directly illustrate the scene on the visible page."),
-            callback = function()
-                self_ref:illustrateCurrentPage()
+            text = _("🎭 Cast of Characters (Profiles & Portraits)"),
+            help_text = _("Explore characters, read profile dossiers, and generate concept art portraits."),
+            sub_item_table_func = function()
+                return self_ref:buildCastSubmenu()
+            end,
+        },
+        {
+            text = _("✨ Scenes & Book Illustrations"),
+            help_text = _("Generate high-contrast visual illustrations for scenes in the book."),
+            sub_item_table_func = function()
+                return self_ref:buildScenesSubmenu()
             end,
         },
         {
@@ -201,6 +231,27 @@ function GeminiIllustrator:getSubMenuItems()
             callback = function()
                 local book_info = self_ref.scanner:getBookInfo(self_ref.ui)
                 self_ref.scene_dialog:showGallery(book_info)
+            end,
+        },
+        {
+            text = _("🖼️ Choose Image Model & Provider"),
+            help_text = _("Pollinations (Free $0), Fal.ai ($0.003), Google Imagen / Nano Banana, or OpenAI"),
+            sub_item_table_func = function()
+                return self_ref:buildImageModelSubmenu()
+            end,
+        },
+        {
+            text = _("🎨 Choose Art Style"),
+            help_text = _("Select E-Ink style: Engraving, Noir, Woodcut, etc."),
+            sub_item_table_func = function()
+                return self_ref:buildArtStyleSubmenu()
+            end,
+        },
+        {
+            text = _("🧠 Choose Text Analysis Model"),
+            help_text = _("Gemini 3.1 Flash Lite (Free 500 RPD), 3.8 Flash, or Pro"),
+            sub_item_table_func = function()
+                return self_ref:buildTextModelSubmenu()
             end,
         },
         {
@@ -224,27 +275,6 @@ function GeminiIllustrator:getSubMenuItems()
             end,
         },
         {
-            text = _("🖼️ Choose Image Model & Provider"),
-            help_text = _("Pollinations (Free $0), Fal.ai ($0.003), Google ($0.07), or OpenAI"),
-            sub_item_table_func = function()
-                return self_ref:buildImageModelSubmenu()
-            end,
-        },
-        {
-            text = _("🧠 Choose Text Analysis Model"),
-            help_text = _("Gemini 3.1 Flash Lite (Free), 3.8 Flash, or Pro"),
-            sub_item_table_func = function()
-                return self_ref:buildTextModelSubmenu()
-            end,
-        },
-        {
-            text = _("🎨 Choose Art Style"),
-            help_text = _("Select E-Ink style: Engraving, Noir, Woodcut, etc."),
-            sub_item_table_func = function()
-                return self_ref:buildArtStyleSubmenu()
-            end,
-        },
-        {
             text = _("📐 Image Resolution & Speed"),
             help_text = _("Fast 768x1024, Balanced, or Native 300 PPI."),
             sub_item_table_func = function()
@@ -252,7 +282,7 @@ function GeminiIllustrator:getSubMenuItems()
             end,
         },
         {
-            text = _("🔑 API Keys & Connection Test"),
+            text = _("🔑 API Keys & Connection Setup"),
             help_text = _("Manage API keys and test connections."),
             sub_item_table_func = function()
                 return self_ref:buildKeysMenu()

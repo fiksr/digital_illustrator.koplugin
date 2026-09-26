@@ -121,12 +121,12 @@ function SceneDialog:showCharacterCard(char, book_info, on_generate_callback, on
     local visual_desc = char.visual_prompt or ""
     local has_portrait = (char.has_portrait == true)
 
-    local card_text = string.format("🎭 Uloga:\n%s\n\n📖 Opis i uloga u priči:\n%s", role, summary)
+    local card_text = string.format(_("🎭 Role:\n%s\n\n📖 Story & Background:\n%s"), role, summary)
 
     if #visual_desc > 0 then
         local clean_vis = visual_desc:gsub("^Vertical portrait[^,]*,%s*", ""):gsub("^masterpiece[^,]*,%s*", "")
         if #clean_vis > 0 then
-            card_text = card_text .. string.format("\n\n🎨 Vizuelni izgled (Koncept):\n%s", clean_vis)
+            card_text = card_text .. string.format(_("\n\n🎨 Visual Concept:\n%s"), clean_vis)
         end
     end
 
@@ -135,7 +135,7 @@ function SceneDialog:showCharacterCard(char, book_info, on_generate_callback, on
 
     if has_portrait then
         table.insert(row1, {
-            text = _("🖼️ Prikaži Portret"),
+            text = _("🖼️ View Portrait"),
             is_enter_default = true,
             callback = function()
                 UIManager:close(dialog)
@@ -143,7 +143,7 @@ function SceneDialog:showCharacterCard(char, book_info, on_generate_callback, on
             end,
         })
         table.insert(row1, {
-            text = _("🔄 Ponovo Nacrtaj (AI)"),
+            text = _("🔄 Regenerate Portrait"),
             callback = function()
                 UIManager:close(dialog)
                 if on_generate_callback then on_generate_callback(char, true) end
@@ -151,7 +151,7 @@ function SceneDialog:showCharacterCard(char, book_info, on_generate_callback, on
         })
     else
         table.insert(row1, {
-            text = _("🎨 Generiši AI Portret"),
+            text = _("🎨 Generate AI Portrait"),
             is_enter_default = true,
             callback = function()
                 UIManager:close(dialog)
@@ -162,7 +162,7 @@ function SceneDialog:showCharacterCard(char, book_info, on_generate_callback, on
 
     local row2 = {
         {
-            text = _("Zatvori"),
+            text = _("Close"),
             callback = function()
                 UIManager:close(dialog)
             end,
