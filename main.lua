@@ -235,7 +235,7 @@ function GeminiIllustrator:getSubMenuItems()
         },
         {
             text = _("🖼️ Choose Image Model & Provider"),
-            help_text = _("Pollinations (Free $0), Fal.ai ($0.003), Google Imagen / Nano Banana, or OpenAI"),
+            help_text = _("Pollinations (Free $0), Fal.ai, Google Nano Banana, or OpenAI"),
             sub_item_table_func = function()
                 return self_ref:buildImageModelSubmenu()
             end,

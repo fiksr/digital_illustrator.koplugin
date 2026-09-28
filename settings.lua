@@ -41,42 +41,42 @@ Settings.IMAGE_MODELS = {
     {
         id = "fal-flux-schnell",
         provider = "fal",
-        name = "⚡ Fal.ai FLUX.1 Schnell ($0.003 / image)",
-        desc = "Ultra-fast ~1s, ~333 images for $1 (requires Fal key)"
+        name = "⚡ Fal.ai FLUX.1 Schnell",
+        desc = "Ultra-fast ~1s, low cost per image (requires Fal key)"
     },
     {
         id = "fal-flux-dev",
         provider = "fal",
-        name = "🎨 Fal.ai FLUX.1 Dev ($0.025 / image)",
-        desc = "Maximum photorealism & detail, ~40 images for $1 (requires Fal key)"
+        name = "🎨 Fal.ai FLUX.1 Dev",
+        desc = "Maximum photorealism & detail (requires Fal key)"
     },
 
     -- 3. Google Nano Banana Image Models
     {
         id = "gemini-3.1-flash-lite-image",
         provider = "google",
-        name = "🍌 Nano Banana 2 Lite ($0.07 / image)",
-        desc = "Google Imagen 3 Fast multimodal for Kindle e-ink"
+        name = "🍌 Nano Banana 2 Lite",
+        desc = "Google Gemini multimodal fast E-Ink portrait engine"
     },
     {
         id = "gemini-3.1-flash-image",
         provider = "google",
-        name = "🍌 Nano Banana 2 ($0.10 / image)",
-        desc = "Google Imagen 3 Standard multimodal portrait generation"
+        name = "🍌 Nano Banana 2",
+        desc = "Google Gemini multimodal standard portrait generation"
     },
     {
         id = "gemini-3-pro-image",
         provider = "google",
-        name = "🍌 Nano Banana Pro (~$0.13 / image)",
-        desc = "Google Imagen 3 Maximum artistic detail concept art"
+        name = "🍌 Nano Banana Pro",
+        desc = "Google Gemini multimodal maximum artistic detail"
     },
 
     -- 4. OpenAI
     {
         id = "dall-e-3",
         provider = "openai",
-        name = "🤖 OpenAI DALL-E 3 ($0.04 - $0.08 / image)",
-        desc = "Standard DALL-E 3 quality (requires OpenAI key)"
+        name = "🤖 OpenAI DALL-E 3",
+        desc = "Standard vertical DALL-E 3 quality (requires OpenAI key)"
     },
 }
 
