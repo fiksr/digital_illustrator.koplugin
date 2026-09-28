@@ -9,10 +9,10 @@
 ---
 
 <p align="center">
-  <img src="screenshots/1_scene_selection.jpg" width="24%" alt="1. AI Scene Suggestions"/>
-  <img src="screenshots/2_generation_progress.jpg" width="24%" alt="2. AI Generation Progress"/>
-  <img src="screenshots/3_actions_and_export.jpg" width="24%" alt="3. Actions & Export Menu"/>
-  <img src="screenshots/4_fullscreen_illustration.jpg" width="24%" alt="4. Fullscreen E-Ink Illustration"/>
+  <img src="screenshots/portrait_portia.png" width="24%" alt="AI Character Portrait - Portia"/>
+  <img src="screenshots/portrait_commander.png" width="24%" alt="AI Character Portrait - Commander"/>
+  <img src="screenshots/portrait_scientist.png" width="24%" alt="AI Character Portrait - Engineer"/>
+  <img src="screenshots/illustration_airship_vintage.png" width="24%" alt="E-Ink Vintage Engraving - Airship"/>
 </p>
 
 ---
@@ -37,6 +37,11 @@
 * 📑 **Custom Page Range**: Scan specific passages (e.g. pages 15–28).
 * 📝 **Highlight Trigger**: Select any text or paragraph $\rightarrow$ tap **✨ Gemini Illustrate** in the popup menu.
 * 📚 **Direct Multi-Format Book Engine**: High-speed, uncompressed text extraction supporting **EPUB** (internal XML parser), **MOBI / AZW3** (PalmDoc LZ77 decompressor), **FB2**, **PDF**, and **TXT**.
+
+<p align="center">
+  <img src="screenshots/scene_arachnis_city.png" width="49%" alt="E-Ink Scene - Arachnis Metropolis"/>
+  <img src="screenshots/scene_cyber_spider_lab.png" width="49%" alt="E-Ink Scene - Cybernetic Control Hub"/>
+</p>
 
 ---
 
