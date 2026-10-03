@@ -1,4 +1,4 @@
-# 📖 Gemini AI Book Illustrator for KOReader
+# 📖 Digital AI Book Illustrator for KOReader
 
 [![Ko-fi](https://img.shields.io/badge/Ko--fi-Support%20Development-ff5e5b?style=for-the-badge&logo=kofi&logoColor=white)](https://ko-fi.com/fiksr)
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg?style=for-the-badge)](LICENSE)
