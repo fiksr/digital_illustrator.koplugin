@@ -94,7 +94,7 @@ function API:getOpenAIKey()
 end
 
 function API:getTextModel()
-    return self.settings:get("text_model") or "gemini-3.1-flash-lite"
+    return self.settings:get("text_model") or "gemini-3.8-flash"
 end
 
 function API:getImageModel()
@@ -229,7 +229,6 @@ function API:analyzeChapter(chapter_text, system_instruction)
         },
         generationConfig = {
             response_mime_type = "application/json",
-            temperature = 0.5,
         }
     }
 
@@ -317,9 +316,6 @@ function API:extractCharacters(text_to_analyze, system_instruction, enable_web_s
                 role = "user",
                 parts = { { text = truncated_text } }
             }
-        },
-        generationConfig = {
-            temperature = 0.3,
         }
     }
 
@@ -332,7 +328,9 @@ function API:extractCharacters(text_to_analyze, system_instruction, enable_web_s
         }
         -- Note: When tools/google_search is present, response_mime_type is omitted to prevent API 400 error
     else
-        payload.generationConfig.response_mime_type = "application/json"
+        payload.generationConfig = {
+            response_mime_type = "application/json"
+        }
     end
 
     local body_json = encodeJSON(payload)
@@ -427,9 +425,6 @@ function API:extractCharactersFromInternet(book_info, system_instruction)
             {
                 google_search = {}
             }
-        },
-        generationConfig = {
-            temperature = 0.3,
         }
     }
 

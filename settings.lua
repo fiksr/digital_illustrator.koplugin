@@ -10,7 +10,7 @@ local DEFAULT_SETTINGS = {
     api_key = "",                        -- Google Gemini API Key (for Text Brain & Google Imagen)
     fal_key = "",                        -- Fal.ai API Key (for ultra-cheap Flux.1)
     openai_key = "",                     -- OpenAI API Key (for DALL-E 3)
-    text_model = "gemini-3.1-flash-lite", -- 500 RPD high quota (Free Text Brain)
+    text_model = "gemini-3.8-flash",      -- Default to Gemini 3.8 Flash
     image_model = "pollinations-flux",    -- Default to Free Pollinations Flux or Nano Banana
     resolution = "768x1024",              -- Fast, responsive for Kindle Wi-Fi & 3:4 E-Ink
     art_style = "auto_genre",             -- Automatically adapt to book genre
@@ -21,10 +21,10 @@ local DEFAULT_SETTINGS = {
 }
 
 Settings.TEXT_MODELS = {
-    { id = "gemini-3.1-flash-lite", name = "Gemini 3.1 Flash Lite (500 RPD - 100% Free)", desc = "High rate limits, ultra-fast chapter analysis" },
-    { id = "gemini-3.8-flash",      name = "Gemini 3.8 Flash (2026 Flagship)",           desc = "Deep contextual understanding" },
+    { id = "gemini-3.8-flash",      name = "Gemini 3.8 Flash (Recommended)",            desc = "Deep contextual literary understanding" },
+    { id = "gemini-3.5-flash-lite", name = "Gemini 3.5 Flash Lite (Free & Ultra-Fast)", desc = "High rate limits, fast chapter analysis" },
+    { id = "gemini-3.1-flash-lite", name = "Gemini 3.1 Flash Lite",                     desc = "Fast lightweight model" },
     { id = "gemini-2.5-flash",      name = "Gemini 2.5 Flash",                           desc = "Stable high-speed model" },
-    { id = "gemini-2.0-flash",      name = "Gemini 2.0 Flash",                           desc = "Fast legacy flash model" },
     { id = "gemini-2.5-pro",        name = "Gemini 2.5 Pro",                             desc = "Maximum literary reasoning" },
 }
 
