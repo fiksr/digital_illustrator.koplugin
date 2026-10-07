@@ -232,6 +232,7 @@ function SceneDialog:showArtworkActions(image_path, scene_info, book_info, on_re
     local self_ref = self
     local title = (scene_info and scene_info.title) or _("AI Illustration")
     local summary = (scene_info and scene_info.summary) or string.format(_("Saved at: %s"), image_path)
+    local dialog
 
     local row1 = {
         {
@@ -298,7 +299,6 @@ function SceneDialog:showArtworkActions(image_path, scene_info, book_info, on_re
         end,
     })
 
-    local dialog
     dialog = ButtonDialog:new{
         title = title,
         text = summary,
